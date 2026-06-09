@@ -1,11 +1,12 @@
 import { AIRTABLE_BASE_ID, AIRTABLE_TOKEN } from "./config";
 import { getSampleProjects } from "./sample-data";
+import { isUnreachableMediaUrl, resolveMediaUrl } from "./media-url";
 import {
   parseAnalytics,
   incrementVisitors,
   incrementCvDownloads,
 } from "./analytics";
-import { parseThemeSettings, sortByOrder } from "./portfolio-theme";
+import { parseThemeSettings, sortByOrder, mergeTheme } from "./portfolio-theme";
 import type { PortfolioTheme } from "./portfolio-theme";
 import type { PortfolioAnalytics } from "./analytics";
 import type {
@@ -71,10 +72,17 @@ function mapPersonalInfo(record: AirtableRecord): PersonalInfo {
     personalWebsite: f["Personal Website"] as string | undefined,
     linkedin: f["LinkedIn"] as string | undefined,
     socialLinks: f["Social Links"] as string | undefined,
-    photoUrl: f["Photo URL"] as string | undefined,
+    photoUrl: resolveMediaUrl(
+      f["Photo URL"] as string | undefined,
+      f["Profile Photo"] as AirtableAttachment[] | undefined
+    ),
     profilePhoto: f["Profile Photo"] as AirtableAttachment[] | undefined,
+    heroBackground: f["Hero Background"] as AirtableAttachment[] | undefined,
     resume: f["Resume"] as AirtableAttachment[] | undefined,
-    resumeUrl: f["Resume URL"] as string | undefined,
+    resumeUrl: resolveMediaUrl(
+      f["Resume URL"] as string | undefined,
+      f["Resume"] as AirtableAttachment[] | undefined
+    ),
     themeSettingsRaw: f["Theme Settings"] as string | undefined,
     analyticsRaw: f["Analytics"] as string | undefined,
   };
@@ -96,7 +104,10 @@ function mapProject(record: AirtableRecord): Project {
     projectStatus: f["Project Status"] as string | undefined,
     roleResponsibility: f["Role/Responsibility"] as string | undefined,
     projectHighlights: f["Project Highlights"] as string | undefined,
-    imageUrl: f["Image URL"] as string | undefined,
+    imageUrl: resolveMediaUrl(
+      f["Image URL"] as string | undefined,
+      f["Project Images"] as AirtableAttachment[] | undefined
+    ),
     projectImages: f["Project Images"] as AirtableAttachment[] | undefined,
   };
 }
@@ -251,13 +262,13 @@ export async function updatePersonalInfo(
   if (fields.socialLinks !== undefined) airtableFields["Social Links"] = fields.socialLinks;
   if (fields.photoUrl !== undefined) {
     airtableFields["Photo URL"] = fields.photoUrl;
-    if (fields.photoUrl) {
+    if (fields.photoUrl && !isUnreachableMediaUrl(fields.photoUrl)) {
       airtableFields["Profile Photo"] = [{ url: fields.photoUrl }];
     }
   }
   if (fields.resumeUrl !== undefined) {
     airtableFields["Resume URL"] = fields.resumeUrl;
-    if (fields.resumeUrl) {
+    if (fields.resumeUrl && !isUnreachableMediaUrl(fields.resumeUrl)) {
       airtableFields["Resume"] = [{ url: fields.resumeUrl }];
     }
   }
@@ -303,9 +314,11 @@ export async function createProject(
     "Personal Info Link": [personalInfoId],
   };
 
-  if (fields.imageUrl) {
+  if (fields.imageUrl && !isUnreachableMediaUrl(fields.imageUrl)) {
     airtableFields["Image URL"] = fields.imageUrl;
     airtableFields["Project Images"] = [{ url: fields.imageUrl }];
+  } else if (fields.imageUrl) {
+    airtableFields["Image URL"] = fields.imageUrl;
   }
 
   const data = await airtableFetch<{ records: AirtableRecord[] }>("Projects", {
@@ -339,7 +352,7 @@ export async function updateProject(
     airtableFields["Project Highlights"] = fields.projectHighlights;
   if (fields.imageUrl !== undefined) {
     airtableFields["Image URL"] = fields.imageUrl;
-    if (fields.imageUrl) {
+    if (fields.imageUrl && !isUnreachableMediaUrl(fields.imageUrl)) {
       airtableFields["Project Images"] = [{ url: fields.imageUrl }];
     }
   }
@@ -468,6 +481,24 @@ export async function recordCvDownload(slug: string): Promise<string | null> {
   return resumeUrl;
 }
 
+function applyHeroFromPersonalInfo(
+  theme: PortfolioTheme,
+  personalInfo: PersonalInfo
+): PortfolioTheme {
+  const heroFromAirtable = personalInfo.heroBackground?.[0]?.url;
+  if (heroFromAirtable) {
+    return mergeTheme(theme, {
+      hero: { ...theme.hero, backgroundImage: heroFromAirtable },
+    });
+  }
+  if (theme.hero?.backgroundImage && isUnreachableMediaUrl(theme.hero.backgroundImage)) {
+    return mergeTheme(theme, {
+      hero: { ...theme.hero, backgroundImage: "" },
+    });
+  }
+  return theme;
+}
+
 export async function getPortfolioBySlug(slug: string): Promise<PortfolioData | null> {
   const user = await findUserBySlug(slug);
   if (!user?.personalInfoId) return null;
@@ -480,7 +511,9 @@ export async function getPortfolioBySlug(slug: string): Promise<PortfolioData | 
     getSkillsForPersonalInfo(user.personalInfoId),
   ]);
 
-  const theme = parseThemeSettings(personalInfo.themeSettingsRaw);
+  const baseTheme = parseThemeSettings(personalInfo.themeSettingsRaw);
+  const theme = applyHeroFromPersonalInfo(baseTheme, personalInfo);
+
   const orderedProjects = sortByOrder(projects, theme.projectOrder);
   const orderedSkills = sortByOrder(skills, theme.skillOrder);
 
@@ -489,7 +522,9 @@ export async function getPortfolioBySlug(slug: string): Promise<PortfolioData | 
 
 export async function getThemeSettings(personalInfoId: string): Promise<PortfolioTheme> {
   const personalInfo = await getPersonalInfo(personalInfoId);
-  return parseThemeSettings(personalInfo?.themeSettingsRaw);
+  if (!personalInfo) return parseThemeSettings(null);
+  const baseTheme = parseThemeSettings(personalInfo.themeSettingsRaw);
+  return applyHeroFromPersonalInfo(baseTheme, personalInfo);
 }
 
 export async function saveThemeSettings(

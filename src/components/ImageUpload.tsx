@@ -8,6 +8,9 @@ interface ImageUploadProps {
   currentUrl?: string;
   onUpload: (url: string) => void;
   type?: "profile" | "project";
+  recordId?: string;
+  disabled?: boolean;
+  disabledHint?: string;
 }
 
 export default function ImageUpload({
@@ -15,6 +18,9 @@ export default function ImageUpload({
   currentUrl,
   onUpload,
   type = "profile",
+  recordId,
+  disabled = false,
+  disabledHint,
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
@@ -24,6 +30,8 @@ export default function ImageUpload({
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (disabled) return;
 
     setError("");
     setUploading(true);
@@ -35,6 +43,7 @@ export default function ImageUpload({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("type", type);
+      if (recordId) formData.append("recordId", recordId);
 
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
@@ -87,9 +96,15 @@ export default function ImageUpload({
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
             onChange={handleFileChange}
-            className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-violet-500 file:cursor-pointer"
+            disabled={disabled || uploading}
+            className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-violet-500 file:cursor-pointer disabled:opacity-50"
           />
-          <p className="mt-1.5 text-xs text-slate-500">JPEG, PNG, WebP or GIF. Max 5MB.</p>
+          <p className="mt-1.5 text-xs text-slate-500">
+            JPEG, PNG, WebP or GIF. Max 5MB. Stored on Airtable CDN.
+          </p>
+          {disabled && disabledHint && (
+            <p className="mt-1 text-xs text-amber-500">{disabledHint}</p>
+          )}
           {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
         </div>
       </div>

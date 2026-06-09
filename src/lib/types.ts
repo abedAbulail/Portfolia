@@ -21,6 +21,7 @@ export interface PersonalInfo {
   socialLinks?: string;
   photoUrl?: string;
   profilePhoto?: AirtableAttachment[];
+  heroBackground?: AirtableAttachment[];
   resume?: AirtableAttachment[];
   resumeUrl?: string;
   themeSettingsRaw?: string;

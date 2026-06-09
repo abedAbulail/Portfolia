@@ -143,6 +143,9 @@ export default function ProjectsEditor() {
             currentUrl={editing.imageUrl}
             onUpload={(url) => setEditing({ ...editing, imageUrl: url })}
             type="project"
+            recordId={editing.id}
+            disabled={!editing.id}
+            disabledHint="Save the project first, then upload a photo."
           />
           <div className="flex gap-3">
             <button type="submit" disabled={saving} className="btn-primary text-sm">

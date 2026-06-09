@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
-  saveUploadedImage,
-  saveUploadedDocument,
-  validateImageFile,
-  validateDocumentFile,
-} from "@/lib/upload";
+  uploadAttachmentToAirtable,
+  patchRecordField,
+  ATTACHMENT_FIELDS,
+} from "@/lib/airtable-upload";
+import { validateImageFile, validateDocumentFile } from "@/lib/upload";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const type = (formData.get("type") as string) || "profile";
+    const recordId = (formData.get("recordId") as string) || "";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided." }, { status: 400 });
@@ -27,8 +28,25 @@ export async function POST(request: Request) {
       if (validationError) {
         return NextResponse.json({ error: validationError }, { status: 400 });
       }
-      const result = await saveUploadedDocument(file, session.personalInfoId, "cv");
-      return NextResponse.json(result);
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const attachment = await uploadAttachmentToAirtable(
+        session.personalInfoId,
+        ATTACHMENT_FIELDS.resume,
+        buffer,
+        file.name,
+        file.type || "application/pdf"
+      );
+
+      await patchRecordField("Personal Info", session.personalInfoId, {
+        "Resume URL": attachment.url,
+      });
+
+      return NextResponse.json({
+        url: attachment.url,
+        relativePath: attachment.url,
+        filename: file.name,
+      });
     }
 
     const validationError = validateImageFile(file);
@@ -36,17 +54,64 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const prefix =
-      type === "project" ? "project" : type === "hero" ? "hero" : "profile";
-    const { url, relativePath } = await saveUploadedImage(
-      file,
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const contentType = file.type || "image/jpeg";
+
+    if (type === "project") {
+      if (!recordId) {
+        return NextResponse.json(
+          {
+            error: "Save the project first, then upload a photo.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const attachment = await uploadAttachmentToAirtable(
+        recordId,
+        ATTACHMENT_FIELDS.projectImages,
+        buffer,
+        file.name,
+        contentType
+      );
+
+      await patchRecordField("Projects", recordId, {
+        "Image URL": attachment.url,
+      });
+
+      return NextResponse.json({ url: attachment.url, relativePath: attachment.url });
+    }
+
+    if (type === "hero") {
+      const attachment = await uploadAttachmentToAirtable(
+        session.personalInfoId,
+        ATTACHMENT_FIELDS.heroBackground,
+        buffer,
+        file.name,
+        contentType
+      );
+
+      return NextResponse.json({ url: attachment.url, relativePath: attachment.url });
+    }
+
+    // profile (default)
+    const attachment = await uploadAttachmentToAirtable(
       session.personalInfoId,
-      prefix
+      ATTACHMENT_FIELDS.profilePhoto,
+      buffer,
+      file.name,
+      contentType
     );
 
-    return NextResponse.json({ url, relativePath });
+    await patchRecordField("Personal Info", session.personalInfoId, {
+      "Photo URL": attachment.url,
+    });
+
+    return NextResponse.json({ url: attachment.url, relativePath: attachment.url });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json({ error: "Failed to upload file." }, { status: 500 });
+    const message =
+      error instanceof Error ? error.message : "Failed to upload file.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
