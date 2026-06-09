@@ -3,7 +3,6 @@ import { getSession } from "@/lib/auth";
 import {
   uploadAttachmentToAirtable,
   patchRecordField,
-  ATTACHMENT_FIELDS,
 } from "@/lib/airtable-upload";
 import { validateImageFile, validateDocumentFile } from "@/lib/upload";
 
@@ -11,6 +10,10 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!session.personalInfoId?.startsWith("rec")) {
+    return NextResponse.json({ error: "Invalid profile record." }, { status: 400 });
   }
 
   try {
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const attachment = await uploadAttachmentToAirtable(
         session.personalInfoId,
-        ATTACHMENT_FIELDS.resume,
+        "resume",
         buffer,
         file.name,
         file.type || "application/pdf"
@@ -58,18 +61,16 @@ export async function POST(request: Request) {
     const contentType = file.type || "image/jpeg";
 
     if (type === "project") {
-      if (!recordId) {
+      if (!recordId?.startsWith("rec")) {
         return NextResponse.json(
-          {
-            error: "Save the project first, then upload a photo.",
-          },
+          { error: "Save the project first, then upload a photo." },
           { status: 400 }
         );
       }
 
       const attachment = await uploadAttachmentToAirtable(
         recordId,
-        ATTACHMENT_FIELDS.projectImages,
+        "projectImages",
         buffer,
         file.name,
         contentType
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     if (type === "hero") {
       const attachment = await uploadAttachmentToAirtable(
         session.personalInfoId,
-        ATTACHMENT_FIELDS.heroBackground,
+        "heroBackground",
         buffer,
         file.name,
         contentType
@@ -94,10 +95,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ url: attachment.url, relativePath: attachment.url });
     }
 
-    // profile (default)
     const attachment = await uploadAttachmentToAirtable(
       session.personalInfoId,
-      ATTACHMENT_FIELDS.profilePhoto,
+      "profilePhoto",
       buffer,
       file.name,
       contentType

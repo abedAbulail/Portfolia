@@ -17,7 +17,15 @@ const navItems: { href: string; labelKey: string; exact?: boolean; icon: AppIcon
   { href: "/dashboard/account", labelKey: "nav.account", icon: "settings" },
 ];
 
-export default function DashboardSidebar({ slug }: { slug: string }) {
+export default function DashboardSidebar({
+  slug,
+  mobileOpen = false,
+  onClose,
+}: {
+  slug: string;
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const { locale, setLocale, t, dir } = useLocale();
   const { theme, toggleTheme } = useAppTheme();
@@ -25,17 +33,24 @@ export default function DashboardSidebar({ slug }: { slug: string }) {
 
   return (
     <aside
-      className={`w-64 shrink-0 flex flex-col min-h-screen sticky top-0 ${
-        isRtl ? "border-l" : "border-r"
-      }`}
+      className={`
+        fixed lg:sticky top-0 z-50 h-full lg:h-screen
+        w-[min(280px,85vw)] lg:w-64 shrink-0 flex flex-col
+        transition-transform duration-300 ease-out
+        ${isRtl ? "right-0 border-l lg:border-l" : "left-0 border-r lg:border-r"}
+        ${mobileOpen ? "translate-x-0" : isRtl ? "translate-x-full lg:translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}
       style={{
         borderColor: "var(--app-border)",
         background: "var(--app-sidebar-bg)",
       }}
       dir={dir}
     >
-      <div className="p-5 border-b" style={{ borderColor: "var(--app-border)" }}>
-        <Link href="/" className="flex items-center gap-2">
+      <div
+        className="p-4 lg:p-5 border-b flex items-center justify-between"
+        style={{ borderColor: "var(--app-border)" }}
+      >
+        <Link href="/" className="flex items-center gap-2" onClick={onClose}>
           <span
             className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white"
             style={{ background: "var(--app-primary)" }}
@@ -46,6 +61,15 @@ export default function DashboardSidebar({ slug }: { slug: string }) {
             Portfolia
           </span>
         </Link>
+        <button
+          type="button"
+          onClick={onClose}
+          className="lg:hidden flex h-8 w-8 items-center justify-center rounded-lg"
+          style={{ color: "var(--app-text-muted)" }}
+          aria-label="Close menu"
+        >
+          <AppIcon name="x" size={18} />
+        </button>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -57,6 +81,7 @@ export default function DashboardSidebar({ slug }: { slug: string }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
               style={
                 active
@@ -109,6 +134,7 @@ export default function DashboardSidebar({ slug }: { slug: string }) {
         <Link
           href={`/portfolio/${slug}`}
           target="_blank"
+          onClick={onClose}
           className="flex items-center justify-center gap-2 w-full rounded-lg border px-3 py-2 text-xs transition-colors"
           style={{
             borderColor: "var(--app-border)",

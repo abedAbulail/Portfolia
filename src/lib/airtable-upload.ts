@@ -13,17 +13,41 @@ interface UploadAttachmentResponse {
   fields: Record<string, AirtableUploadedAttachment[]>;
 }
 
-/** Upload file bytes directly to an Airtable attachment field (max 5MB). */
+/** Airtable attachment field IDs (stable across renames). */
+export const ATTACHMENT_FIELD_IDS = {
+  profilePhoto: "fld2jxTokqx1wLtyx",
+  projectImages: "fld0S5G1pMqduduzX",
+  resume: "fldsE30fhYdNoKGdt",
+  heroBackground: "fldkDOVDxuDJal9tU",
+} as const;
+
+export const ATTACHMENT_FIELDS = {
+  profilePhoto: "Profile Photo",
+  projectImages: "Project Images",
+  resume: "Resume",
+  heroBackground: "Hero Background",
+} as const;
+
+export type UploadFieldKey = keyof typeof ATTACHMENT_FIELD_IDS;
+
+/**
+ * Upload file bytes to Airtable (max 5MB).
+ * Must use content.airtable.com — api.airtable.com returns 404 for this route.
+ */
 export async function uploadAttachmentToAirtable(
   recordId: string,
-  fieldName: string,
+  fieldKey: UploadFieldKey,
   file: Buffer,
   filename: string,
   contentType: string
 ): Promise<AirtableUploadedAttachment> {
-  const fieldSegment = encodeURIComponent(fieldName);
+  if (!recordId?.startsWith("rec")) {
+    throw new Error("Invalid record ID for upload.");
+  }
+
+  const fieldId = ATTACHMENT_FIELD_IDS[fieldKey];
   const res = await fetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${fieldSegment}/uploadAttachment`,
+    `https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${fieldId}/uploadAttachment`,
     {
       method: "POST",
       headers: {
@@ -40,24 +64,17 @@ export async function uploadAttachmentToAirtable(
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Airtable upload failed ${res.status}: ${body}`);
+    throw new Error(`Airtable upload failed (${res.status}): ${body}`);
   }
 
   const data = (await res.json()) as UploadAttachmentResponse;
   const attachments = Object.values(data.fields).flat();
   const uploaded = attachments[attachments.length - 1];
   if (!uploaded?.url) {
-    throw new Error("Airtable upload succeeded but no attachment URL was returned.");
+    throw new Error("Upload succeeded but Airtable returned no attachment URL.");
   }
   return uploaded;
 }
-
-export const ATTACHMENT_FIELDS = {
-  profilePhoto: "Profile Photo",
-  projectImages: "Project Images",
-  resume: "Resume",
-  heroBackground: "Hero Background",
-} as const;
 
 export async function patchRecordField(
   tableName: string,
@@ -77,6 +94,6 @@ export async function patchRecordField(
   );
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Airtable patch failed ${res.status}: ${body}`);
+    throw new Error(`Airtable patch failed (${res.status}): ${body}`);
   }
 }
