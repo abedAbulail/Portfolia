@@ -47,8 +47,8 @@ export default function CvUpload({ currentUrl, currentFilename, onUpload }: CvUp
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">Resume / CV</label>
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+      <label className="label-text">Resume / CV</label>
+      <div className="card !p-4">
         {currentUrl ? (
           <div className="flex items-center gap-3 mb-3">
             <span
@@ -58,20 +58,21 @@ export default function CvUpload({ currentUrl, currentFilename, onUpload }: CvUp
               <AppIcon name="file" size={20} />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white truncate">{filename || "Your resume"}</p>
+              <p className="text-sm text-app truncate">{filename || "Your resume"}</p>
               <a
                 href={currentUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-violet-400 hover:text-violet-300"
+                className="text-xs inline-flex items-center gap-1"
+                style={{ color: "var(--app-primary)" }}
               >
                 View current file
-                <AppIcon name="external-link" size={12} className="inline ml-1" />
+                <AppIcon name="external-link" size={12} />
               </a>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-500 mb-3">No resume uploaded yet.</p>
+          <p className="text-sm text-app-muted mb-3">No resume uploaded yet.</p>
         )}
 
         <input
@@ -79,11 +80,11 @@ export default function CvUpload({ currentUrl, currentFilename, onUpload }: CvUp
           type="file"
           accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={handleFileChange}
-          className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-violet-500 file:cursor-pointer"
+          className="input-field block w-full"
         />
-        <p className="mt-1.5 text-xs text-slate-500">PDF, DOC or DOCX. Max 10MB.</p>
-        {uploading && <p className="mt-2 text-xs text-violet-300">Uploading...</p>}
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        <p className="mt-1.5 text-xs text-app-muted">PDF, DOC or DOCX. Max 10MB.</p>
+        {uploading && <p className="mt-2 text-xs" style={{ color: "var(--app-primary)" }}>Uploading...</p>}
+        {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       </div>
     </div>
   );

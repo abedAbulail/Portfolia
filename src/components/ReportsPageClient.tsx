@@ -58,10 +58,8 @@ export default function ReportsPageClient() {
     <div dir={dir}>
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
-          <h1 className="font-display text-2xl font-bold mb-1" style={{ color: "var(--app-text)" }}>
-            {t("rep.title")}
-          </h1>
-          <p className="text-sm" style={{ color: "var(--app-text-muted)" }}>
+          <h1 className="page-title mb-1">{t("rep.title")}</h1>
+          <p className="text-sm mb-0" style={{ color: "var(--app-text-muted)" }}>
             {t("rep.subtitle")}
           </p>
         </div>

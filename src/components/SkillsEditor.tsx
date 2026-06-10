@@ -1,7 +1,6 @@
 "use client";
 
 import { AppIcon } from "@/components/icons/AppIcons";
-
 import { useEffect, useState } from "react";
 import type { Skill } from "@/lib/types";
 
@@ -63,12 +62,12 @@ export default function SkillsEditor() {
     await loadSkills();
   }
 
-  if (loading) return <p className="text-slate-400">Loading skills...</p>;
+  if (loading) return <p className="text-app-muted">Loading skills...</p>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-slate-400 text-sm">{skills.length} skill(s)</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-app-muted text-sm">{skills.length} skill(s)</p>
         <button
           type="button"
           onClick={() => setEditing(emptySkill())}
@@ -79,8 +78,8 @@ export default function SkillsEditor() {
       </div>
 
       {editing && (
-        <form onSubmit={handleSave} className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-6 space-y-4">
-          <h3 className="font-semibold text-white">
+        <form onSubmit={handleSave} className="panel">
+          <h3 className="font-semibold text-app">
             {editing.id ? "Edit skill" : "New skill"}
           </h3>
           <input
@@ -129,7 +128,7 @@ export default function SkillsEditor() {
             onChange={(e) => setEditing({ ...editing, certificationBody: e.target.value })}
             className="input-field"
           />
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={saving} className="btn-primary text-sm">
               {saving ? "Saving..." : "Save"}
             </button>
@@ -142,46 +141,41 @@ export default function SkillsEditor() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         {skills.map((skill) => (
-          <div
-            key={skill.id}
-            className="rounded-xl border border-white/10 bg-white/5 p-5"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="font-semibold text-white">{skill.skillName}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {skill.category} · {skill.proficiencyLevel}
+          <div key={skill.id} className="list-item flex-col sm:flex-row">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-app">{skill.skillName}</h3>
+              <p className="text-xs text-app-muted mt-0.5">
+                {skill.category} · {skill.proficiencyLevel}
+              </p>
+              {skill.certificationName && (
+                <p className="text-xs mt-1 inline-flex items-center gap-1" style={{ color: "var(--app-primary)" }}>
+                  <AppIcon name="trophy" size={12} />
+                  {skill.certificationName}
                 </p>
-                {skill.certificationName && (
-                  <p className="text-xs text-violet-400 mt-1 inline-flex items-center gap-1">
-                    <AppIcon name="trophy" size={12} />
-                    {skill.certificationName}
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setEditing(skill)}
-                  className="text-sm text-slate-400 hover:text-white px-2 py-1"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(skill.id)}
-                  className="text-sm text-red-400 hover:text-red-300 px-2 py-1"
-                >
-                  Delete
-                </button>
-              </div>
+              )}
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditing(skill)}
+                className="text-sm text-app-muted hover:text-app px-2 py-1"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(skill.id)}
+                className="text-sm text-red-500 hover:text-red-600 px-2 py-1"
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}
       </div>
 
       {skills.length === 0 && !editing && (
-        <p className="text-slate-500 text-center py-8">
+        <p className="text-app-muted text-center py-8">
           No skills yet. Add your skills and certifications.
         </p>
       )}

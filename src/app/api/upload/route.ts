@@ -26,6 +26,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No file provided." }, { status: 400 });
     }
 
+    if (type === "gallery") {
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const contentType = file.type || "image/jpeg";
+      const attachment = await uploadAttachmentToAirtable(
+        session.personalInfoId,
+        "heroBackground",
+        buffer,
+        file.name,
+        contentType
+      );
+
+      return NextResponse.json({
+        url: attachment.url,
+        relativePath: attachment.url,
+        filename: file.name,
+      });
+    }
+
     if (type === "cv") {
       const validationError = validateDocumentFile(file);
       if (validationError) {

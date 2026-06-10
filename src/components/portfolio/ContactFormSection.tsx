@@ -48,13 +48,13 @@ export default function ContactFormSection({
           {note}
         </p>
       )}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 pf-form-stagger">
         <input
           required
           placeholder={t("pf.name")}
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className={`w-full px-4 py-3 text-sm border ${radius}`}
+          className={`pf-form-field w-full px-4 py-3 text-sm border ${radius}`}
           style={{
             backgroundColor: `${theme.colors.surface}80`,
             borderColor: `${theme.colors.textMuted}30`,
@@ -67,7 +67,7 @@ export default function ContactFormSection({
           placeholder={t("pf.email")}
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
-          className={`w-full px-4 py-3 text-sm border ${radius}`}
+          className={`pf-form-field w-full px-4 py-3 text-sm border ${radius}`}
           style={{
             backgroundColor: `${theme.colors.surface}80`,
             borderColor: `${theme.colors.textMuted}30`,
@@ -78,7 +78,7 @@ export default function ContactFormSection({
           placeholder={t("pf.subject")}
           value={form.subject}
           onChange={(e) => setForm({ ...form, subject: e.target.value })}
-          className={`w-full px-4 py-3 text-sm border ${radius}`}
+          className={`pf-form-field w-full px-4 py-3 text-sm border ${radius}`}
           style={{
             backgroundColor: `${theme.colors.surface}80`,
             borderColor: `${theme.colors.textMuted}30`,
@@ -91,7 +91,7 @@ export default function ContactFormSection({
           value={form.message}
           onChange={(e) => setForm({ ...form, message: e.target.value })}
           rows={5}
-          className={`w-full px-4 py-3 text-sm border resize-y ${radius}`}
+          className={`pf-form-field w-full px-4 py-3 text-sm border resize-y ${radius}`}
           style={{
             backgroundColor: `${theme.colors.surface}80`,
             borderColor: `${theme.colors.textMuted}30`,
@@ -101,7 +101,7 @@ export default function ContactFormSection({
         <button
           type="submit"
           disabled={status === "sending"}
-          className={`w-full py-3 text-sm font-medium ${radius} disabled:opacity-50`}
+          className={`pf-form-field w-full py-3 text-sm font-medium ${radius} disabled:opacity-50`}
           style={{ backgroundColor: theme.colors.primary, color: theme.colors.background }}
         >
           {status === "sending" ? t("pf.sending") : t("pf.send")}

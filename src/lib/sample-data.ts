@@ -1,4 +1,6 @@
-import type { Project } from "./types";
+import type { Project, PortfolioData } from "./types";
+import type { PortfolioTheme } from "./portfolio-theme";
+import type { PlatformData } from "./platform-data";
 
 const SAMPLE_IMAGES = [
   "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=800&q=80",
@@ -54,4 +56,38 @@ export function getSampleProjects(name: string): Omit<Project, "id">[] {
     client: `${firstName}'s Demo Project`,
     roleResponsibility: "Lead Developer — designed architecture, built frontend and API integration.",
   }));
+}
+
+export function buildThemePreviewData(
+  theme: PortfolioTheme,
+  data: PortfolioData | null,
+  platform: PlatformData | null
+): PortfolioData {
+  if (data) {
+    return { ...data, theme, platform: platform || data.platform };
+  }
+
+  const name = "Alex Morgan";
+  const samples = getSampleProjects(name);
+
+  return {
+    personalInfo: {
+      id: "preview",
+      name,
+      email: "alex@example.com",
+      currentPosition: "Senior Product Designer",
+      professionalSummary:
+        "Designer and developer crafting thoughtful digital experiences with a focus on clarity and performance.",
+      bio: "I help teams ship polished products — from research and UX to frontend implementation.",
+    },
+    projects: samples.map((p, i) => ({ ...p, id: `preview-proj-${i + 1}` })),
+    skills: [
+      { id: "preview-s1", skillName: "React", proficiencyLevel: "Expert" },
+      { id: "preview-s2", skillName: "TypeScript", proficiencyLevel: "Advanced" },
+      { id: "preview-s3", skillName: "Figma", proficiencyLevel: "Advanced" },
+      { id: "preview-s4", skillName: "Node.js", proficiencyLevel: "Intermediate" },
+    ],
+    theme,
+    platform: platform || undefined,
+  };
 }

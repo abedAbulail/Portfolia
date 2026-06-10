@@ -13,7 +13,7 @@ interface AppThemeContextValue {
 const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<AppTheme>("dark");
+  const [theme, setThemeState] = useState<AppTheme>("light");
 
   useEffect(() => {
     const saved = localStorage.getItem("app-theme") as AppTheme | null;
@@ -21,7 +21,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
       setThemeState(saved);
       document.documentElement.setAttribute("data-theme", saved);
     } else {
-      document.documentElement.setAttribute("data-theme", "dark");
+      document.documentElement.setAttribute("data-theme", "light");
     }
   }, []);
 

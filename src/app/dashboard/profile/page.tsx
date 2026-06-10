@@ -3,8 +3,8 @@ import ProfileEditor from "@/components/ProfileEditor";
 export default function ProfilePage() {
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-white mb-2">Profile</h1>
-      <p className="text-slate-400 text-sm mb-8">
+      <h1 className="page-title">Profile</h1>
+      <p className="page-subtitle">
         This information appears on your public portfolio page.
       </p>
       <ProfileEditor />

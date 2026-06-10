@@ -38,7 +38,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         return;
       }
 
-      router.push("/dashboard");
+      router.push(mode === "signup" ? "/dashboard/setup" : "/dashboard");
       router.refresh();
     } catch {
       setError("Network error. Please try again.");
@@ -51,7 +51,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
     <form onSubmit={handleSubmit} className="space-y-5">
       {mode === "signup" && (
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-1.5">
+          <label htmlFor="name" className="label-text">
             Full name
           </label>
           <input
@@ -67,7 +67,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
       )}
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+        <label htmlFor="email" className="label-text">
           Email
         </label>
         <input
@@ -82,7 +82,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">
+        <label htmlFor="password" className="label-text">
           Password
         </label>
         <input
@@ -98,7 +98,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
       </div>
 
       {error && (
-        <p className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
           {error}
         </p>
       )}
@@ -111,18 +111,18 @@ export default function AuthForm({ mode }: AuthFormProps) {
             : "Sign in"}
       </button>
 
-      <p className="text-center text-sm text-slate-400">
+      <p className="text-center text-sm text-app-muted">
         {mode === "signup" ? (
           <>
             Already have an account?{" "}
-            <Link href="/login" className="text-violet-400 hover:text-violet-300">
+            <Link href="/login" className="font-medium" style={{ color: "var(--app-primary)" }}>
               Sign in
             </Link>
           </>
         ) : (
           <>
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-violet-400 hover:text-violet-300">
+            <Link href="/signup" className="font-medium" style={{ color: "var(--app-primary)" }}>
               Sign up free
             </Link>
           </>

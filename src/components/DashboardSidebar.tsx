@@ -9,11 +9,15 @@ import { AppIcon, type AppIconName } from "@/components/icons/AppIcons";
 
 const navItems: { href: string; labelKey: string; exact?: boolean; icon: AppIconName }[] = [
   { href: "/dashboard", labelKey: "nav.reports", exact: true, icon: "chart" },
+  { href: "/dashboard/pages", labelKey: "nav.pages", icon: "layout" },
   { href: "/dashboard/profile", labelKey: "nav.profile", icon: "user" },
   { href: "/dashboard/projects", labelKey: "nav.projects", icon: "rocket" },
   { href: "/dashboard/skills", labelKey: "nav.skills", icon: "bolt" },
   { href: "/dashboard/editor", labelKey: "nav.editor", icon: "sparkles" },
+  { href: "/dashboard/media", labelKey: "nav.media", icon: "image" },
   { href: "/dashboard/messages", labelKey: "nav.messages", icon: "mail" },
+  { href: "/dashboard/jobs", labelKey: "nav.jobs", icon: "briefcase" },
+  { href: "/dashboard/booking", labelKey: "nav.booking", icon: "phone" },
   { href: "/dashboard/account", labelKey: "nav.account", icon: "settings" },
 ];
 

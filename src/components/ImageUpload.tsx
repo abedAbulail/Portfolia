@@ -67,12 +67,13 @@ export default function ImageUpload({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
-      <div className="flex items-start gap-4">
+      <label className="label-text">{label}</label>
+      <div className="flex flex-col sm:flex-row items-start gap-4">
         <div
-          className={`relative shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5 ${
-            type === "profile" ? "h-24 w-24" : "h-28 w-40"
+          className={`relative shrink-0 overflow-hidden rounded-xl border ${
+            type === "profile" ? "h-24 w-24" : "h-28 w-full sm:w-40"
           }`}
+          style={{ borderColor: "var(--app-border)", background: "var(--app-input-bg)" }}
         >
           {preview ? (
             <img src={preview} alt="Preview" className="h-full w-full object-cover" />
@@ -97,9 +98,9 @@ export default function ImageUpload({
             accept="image/jpeg,image/png,image/webp,image/gif"
             onChange={handleFileChange}
             disabled={disabled || uploading}
-            className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-violet-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-violet-500 file:cursor-pointer disabled:opacity-50"
+            className="input-field block w-full disabled:opacity-50"
           />
-          <p className="mt-1.5 text-xs text-slate-500">
+          <p className="mt-1.5 text-xs text-app-muted">
             JPEG, PNG, WebP or GIF. Max 5MB. Stored on Airtable CDN.
           </p>
           {disabled && disabledHint && (

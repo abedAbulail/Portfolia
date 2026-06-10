@@ -8,6 +8,12 @@ import {
 } from "./analytics";
 import { parseThemeSettings, sortByOrder, mergeTheme } from "./portfolio-theme";
 import type { PortfolioTheme } from "./portfolio-theme";
+import {
+  parsePortfolioSettings,
+  serializePortfolioSettings,
+  type PortfolioSettings,
+} from "./portfolio-settings";
+import { parsePlatformData, type PlatformData } from "./platform-data";
 import type { PortfolioAnalytics } from "./analytics";
 import type {
   PersonalInfo,
@@ -208,7 +214,7 @@ export async function createUserAccount(
 
   const personalRecord = personalInfo.records[0];
 
-  await createSampleProjects(personalRecord.id, name);
+  await savePlatformData(personalRecord.id, parsePlatformData({ onboarding: { complete: false, step: 1 } }));
 
   const userData = await airtableFetch<{ records: AirtableRecord[] }>("Users", {
     method: "POST",
@@ -511,33 +517,101 @@ export async function getPortfolioBySlug(slug: string): Promise<PortfolioData | 
     getSkillsForPersonalInfo(user.personalInfoId),
   ]);
 
-  const baseTheme = parseThemeSettings(personalInfo.themeSettingsRaw);
-  const theme = applyHeroFromPersonalInfo(baseTheme, personalInfo);
+  const settings = parsePortfolioSettings(personalInfo.themeSettingsRaw);
+  const theme = applyHeroFromPersonalInfo(settings.theme, personalInfo);
 
   const orderedProjects = sortByOrder(projects, theme.projectOrder);
   const orderedSkills = sortByOrder(skills, theme.skillOrder);
 
-  return { personalInfo, projects: orderedProjects, skills: orderedSkills, theme };
+  return { personalInfo, projects: orderedProjects, skills: orderedSkills, theme, platform: settings.platform };
 }
 
 export async function getThemeSettings(personalInfoId: string): Promise<PortfolioTheme> {
+  const settings = await getPortfolioSettings(personalInfoId);
+  return settings.theme;
+}
+
+export async function getPlatformData(personalInfoId: string): Promise<PlatformData> {
+  const settings = await getPortfolioSettings(personalInfoId);
+  return settings.platform;
+}
+
+export async function getPortfolioSettings(personalInfoId: string): Promise<PortfolioSettings> {
   const personalInfo = await getPersonalInfo(personalInfoId);
-  if (!personalInfo) return parseThemeSettings(null);
-  const baseTheme = parseThemeSettings(personalInfo.themeSettingsRaw);
-  return applyHeroFromPersonalInfo(baseTheme, personalInfo);
+  if (!personalInfo) return parsePortfolioSettings(null);
+  const settings = parsePortfolioSettings(personalInfo.themeSettingsRaw);
+  settings.theme = applyHeroFromPersonalInfo(settings.theme, personalInfo);
+  return settings;
 }
 
 export async function saveThemeSettings(
   personalInfoId: string,
   theme: PortfolioTheme
 ): Promise<PortfolioTheme> {
+  const current = await getPortfolioSettings(personalInfoId);
+  await savePortfolioSettings(personalInfoId, { ...current, theme });
+  return theme;
+}
+
+export async function savePlatformData(
+  personalInfoId: string,
+  platform: PlatformData
+): Promise<PlatformData> {
+  const current = await getPortfolioSettings(personalInfoId);
+  await savePortfolioSettings(personalInfoId, { ...current, platform });
+  return platform;
+}
+
+export async function savePortfolioSettings(
+  personalInfoId: string,
+  settings: PortfolioSettings
+): Promise<PortfolioSettings> {
   await airtableFetch<AirtableRecord>(`Personal Info/${personalInfoId}`, {
     method: "PATCH",
     body: JSON.stringify({
-      fields: { "Theme Settings": JSON.stringify(theme) },
+      fields: { "Theme Settings": serializePortfolioSettings(settings) },
     }),
   });
-  return theme;
+  return settings;
+}
+
+export async function listDirectoryProfiles(): Promise<
+  Array<{
+    slug: string;
+    name: string;
+    position?: string;
+    location?: string;
+    industry?: string;
+    photoUrl?: string;
+    skills: string[];
+    visitors: number;
+    featured: boolean;
+  }>
+> {
+  const usersData = await airtableFetch<AirtableListResponse>("Users?maxRecords=100");
+  const results = [];
+  for (const userRecord of usersData.records) {
+    const user = mapUser(userRecord);
+    if (!user.personalInfoId || !user.slug) continue;
+    const personalInfo = await getPersonalInfo(user.personalInfoId);
+    if (!personalInfo) continue;
+    const settings = parsePortfolioSettings(personalInfo.themeSettingsRaw);
+    if (!settings.platform.directory.visible) continue;
+    const skills = await getSkillsForPersonalInfo(user.personalInfoId);
+    const analytics = parseAnalytics(personalInfo.analyticsRaw);
+    results.push({
+      slug: user.slug,
+      name: personalInfo.name,
+      position: personalInfo.currentPosition,
+      location: personalInfo.preferredLocation,
+      industry: personalInfo.industry,
+      photoUrl: personalInfo.photoUrl,
+      skills: skills.slice(0, 8).map((s) => s.skillName),
+      visitors: analytics.visitors,
+      featured: settings.platform.directory.featured,
+    });
+  }
+  return results.sort((a, b) => b.visitors - a.visitors);
 }
 
 function mapMessage(record: AirtableRecord): ContactMessage {

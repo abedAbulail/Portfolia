@@ -60,6 +60,12 @@ export default function Navbar({ variant = "landing", slug }: NavbarProps) {
           ) : (
             <>
               <Link
+                href="/discover"
+                className="text-sm text-slate-600 hover:text-violet-700 transition-colors px-3 py-1.5"
+              >
+                Discover
+              </Link>
+              <Link
                 href="/login"
                 className="text-sm text-slate-600 hover:text-violet-700 transition-colors px-3 py-1.5"
               >

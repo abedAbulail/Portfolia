@@ -2,15 +2,58 @@ import type { CSSProperties, ReactNode } from "react";
 
 export function PanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="mb-5">
+    <div className="mb-4">
       <h3
-        className="text-xs font-semibold uppercase tracking-wider mb-3"
+        className="text-xs font-semibold uppercase tracking-wider mb-2.5"
         style={{ color: "var(--app-text-muted)" }}
       >
         {title}
       </h3>
       {children}
     </div>
+  );
+}
+
+/** Visual group divider for the layout editor sidebar */
+export function LayoutGroup({
+  title,
+  subtitle,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details open={defaultOpen} className="mb-4 rounded-xl border overflow-hidden" style={{ borderColor: "var(--app-border)" }}>
+      <summary
+        className="cursor-pointer list-none px-3 py-3 select-none"
+        style={{ background: "var(--app-input-bg)" }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "var(--app-text)" }}>{title}</p>
+            {subtitle && (
+              <p className="text-xs mt-0.5" style={{ color: "var(--app-text-muted)" }}>{subtitle}</p>
+            )}
+          </div>
+          <span className="text-xs shrink-0" style={{ color: "var(--app-text-muted)" }}>▾</span>
+        </div>
+      </summary>
+      <div className="px-3 py-3 space-y-1 border-t" style={{ borderColor: "var(--app-border)" }}>
+        {children}
+      </div>
+    </details>
+  );
+}
+
+export function FieldHint({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "var(--app-text-muted)" }}>
+      {children}
+    </p>
   );
 }
 

@@ -67,12 +67,14 @@ export interface AirtableAttachment {
 }
 
 import type { PortfolioTheme } from "./portfolio-theme";
+import type { PlatformData } from "./platform-data";
 
 export interface PortfolioData {
   personalInfo: PersonalInfo;
   projects: Project[];
   skills: Skill[];
   theme: PortfolioTheme;
+  platform?: PlatformData;
 }
 
 export interface SessionPayload {

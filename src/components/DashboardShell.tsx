@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useLocale } from "@/context/LocaleContext";
 import DashboardSidebar from "@/components/DashboardSidebar";
+import NotificationsBell from "@/components/NotificationsBell";
 import { AppIcon } from "@/components/icons/AppIcons";
 
 export default function DashboardShell({
@@ -17,8 +18,9 @@ export default function DashboardShell({
   const { dir } = useLocale();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isEditor = pathname.startsWith("/dashboard/editor");
+  const isSetup = pathname.startsWith("/dashboard/setup");
 
-  if (isEditor) {
+  if (isEditor || isSetup) {
     return <div className="min-h-screen bg-[var(--app-bg)]">{children}</div>;
   }
 
@@ -46,7 +48,7 @@ export default function DashboardShell({
         <span className="font-display font-semibold" style={{ color: "var(--app-text)" }}>
           Portfolia
         </span>
-        <div className="w-10" />
+        <NotificationsBell />
       </header>
 
       {/* Mobile overlay */}

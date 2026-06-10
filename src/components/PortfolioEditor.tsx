@@ -7,8 +7,11 @@ import { AppIcon, type AppIconName } from "@/components/icons/AppIcons";
 import { useLocale } from "@/context/LocaleContext";
 import { useAppTheme } from "@/context/AppThemeContext";
 import { LOCALES } from "@/lib/i18n";
+import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useAutoSave } from "@/hooks/useAutoSave";
 import ThemesPanel from "@/components/editor/ThemesPanel";
 import SectionEditorPanel from "@/components/editor/SectionEditorPanel";
+import LayoutPanel from "@/components/editor/LayoutPanel";
 import {
   PanelSection,
   ColorInput,
@@ -19,13 +22,18 @@ import {
 } from "@/components/editor/EditorShared";
 import type { PortfolioData } from "@/lib/types";
 import type { PortfolioTheme, SectionId } from "@/lib/portfolio-theme";
+import type { PlatformData } from "@/lib/platform-data";
+import { DEFAULT_PLATFORM, parsePlatformData } from "@/lib/platform-data";
 import {
   DEFAULT_THEME,
   COLOR_PRESETS,
   SECTION_LABELS,
   sortByOrder,
   mergeTheme,
-  getAvailableSections,
+  ALL_SECTIONS,
+  createSectionInstance,
+  getInstanceLabel,
+  DEFAULT_SECTION_STYLES,
   MAIN_SECTIONS,
 } from "@/lib/portfolio-theme";
 
@@ -41,27 +49,34 @@ const VIEWPORT_WIDTHS: Record<PreviewViewport, string> = {
 
 export default function PortfolioEditor() {
   const [data, setData] = useState<PortfolioData | null>(null);
-  const [theme, setTheme] = useState<PortfolioTheme>(DEFAULT_THEME);
+  const [platform, setPlatform] = useState<PlatformData>(DEFAULT_PLATFORM);
+  const { state: theme, set: setThemeState, undo, redo, canUndo, canRedo, reset: resetTheme } = useUndoRedo<PortfolioTheme>(DEFAULT_THEME);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
   const [message, setMessage] = useState("");
   const [activeTab, setActiveTab] = useState<EditorTab>("themes");
-  const [selectedSection, setSelectedSection] = useState<SectionId | null>(null);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [userSlug, setUserSlug] = useState("");
   const [viewport, setViewport] = useState<PreviewViewport>("desktop");
   const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingFooter, setUploadingFooter] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>("edit");
   const { locale, setLocale, t, dir } = useLocale();
   const { theme: appTheme, toggleTheme } = useAppTheme();
 
   useEffect(() => {
-    Promise.all([fetch("/api/dashboard"), fetch("/api/dashboard/theme")])
-      .then(([dashRes, themeRes]) => Promise.all([dashRes.json(), themeRes.json()]))
-      .then(([dash, themeData]) => {
+    Promise.all([fetch("/api/dashboard"), fetch("/api/dashboard/theme"), fetch("/api/dashboard/platform")])
+      .then(([dashRes, themeRes, platformRes]) =>
+        Promise.all([dashRes.json(), themeRes.json(), platformRes.json()])
+      )
+      .then(([dash, themeData, platformData]) => {
         if (dash.personalInfo) {
           const loadedTheme = themeData.theme || DEFAULT_THEME;
+          const loadedPlatform = parsePlatformData(platformData.platform);
           setUserSlug(dash.user?.slug || "");
-          setTheme(loadedTheme);
+          resetTheme(loadedTheme);
+          setPlatform(loadedPlatform);
           setData({
             personalInfo: {
               ...dash.personalInfo,
@@ -71,6 +86,7 @@ export default function PortfolioEditor() {
             projects: dash.projects || [],
             skills: dash.skills || [],
             theme: loadedTheme,
+            platform: loadedPlatform,
           });
         }
       })
@@ -78,16 +94,60 @@ export default function PortfolioEditor() {
   }, []);
 
   const updateTheme = useCallback((patch: Partial<PortfolioTheme> | PortfolioTheme) => {
-    setTheme((prev) => {
+    setThemeState((prev) => {
       if ("sections" in patch && patch.sections && "colors" in patch && patch.colors) {
         return patch as PortfolioTheme;
       }
       return mergeTheme(prev, patch as Partial<PortfolioTheme>);
     });
-  }, []);
+  }, [setThemeState]);
 
   const applyFullTheme = useCallback((fullTheme: PortfolioTheme) => {
-    setTheme(fullTheme);
+    setThemeState(fullTheme);
+  }, [setThemeState]);
+
+  const saveTheme = useCallback(async (themeData: PortfolioTheme) => {
+    const res = await fetch("/api/dashboard/theme", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(themeData),
+    });
+    if (res.ok) setAutoSaved(true);
+    return res.ok;
+  }, []);
+
+  useAutoSave(theme, saveTheme, 2500, !loading && !!data);
+
+  const savePlatform = useCallback(async (platformData: PlatformData) => {
+    const res = await fetch("/api/dashboard/platform", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(platformData),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      setPlatform(parsePlatformData(json.platform));
+    }
+    return res.ok;
+  }, []);
+
+  useAutoSave(platform, savePlatform, 2500, !loading && !!data);
+
+  const updatePlatform = useCallback((patch: Partial<PlatformData>) => {
+    setPlatform((prev) => {
+      const next = parsePlatformData({ ...prev, ...patch });
+      setData((d) => (d ? { ...d, platform: next } : d));
+      return next;
+    });
+  }, []);
+
+  const updateProfile = useCallback(async (patch: Partial<PortfolioData["personalInfo"]>) => {
+    setData((d) => (d ? { ...d, personalInfo: { ...d.personalInfo, ...patch } } : d));
+    await fetch("/api/dashboard/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
   }, []);
 
   const previewData: PortfolioData | null = data
@@ -102,29 +162,30 @@ export default function PortfolioEditor() {
           theme.skillOrder.length ? theme.skillOrder : data.skills.map((s) => s.id)
         ),
         theme,
+        platform,
       }
     : null;
 
   async function handleSave() {
     setSaving(true);
     setMessage("");
-    const res = await fetch("/api/dashboard/theme", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(theme),
-    });
-    setMessage(res.ok ? "Theme saved! View your live portfolio to see changes." : "Failed to save.");
+    const ok = await saveTheme(theme);
+    setMessage(ok ? "Theme saved! View your live portfolio to see changes." : "Failed to save.");
     setSaving(false);
   }
 
-  function moveSection(id: SectionId, dir: -1 | 1) {
+  function moveSection(instanceId: string, dir: -1 | 1) {
     const order = [...theme.sections.order];
-    const idx = order.indexOf(id);
+    const idx = order.findIndex((item) => item.id === instanceId);
     const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= order.length) return;
+    if (idx < 0 || newIdx < 0 || newIdx >= order.length) return;
     [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
     updateTheme({ sections: { ...theme.sections, order } });
   }
+
+  const selectedInstance = selectedSectionId
+    ? theme.sections.order.find((item) => item.id === selectedSectionId)
+    : null;
 
   function moveItem(type: "project" | "skill", id: string, dir: -1 | 1) {
     if (!data) return;
@@ -207,6 +268,27 @@ export default function PortfolioEditor() {
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              className="hidden sm:flex items-center justify-center h-8 w-8 rounded-lg border transition-colors disabled:opacity-40"
+              style={{ borderColor: "var(--app-border)", color: "var(--app-text-muted)" }}
+              title={t("ed.undo")}
+            >
+              ↶
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              className="hidden sm:flex items-center justify-center h-8 w-8 rounded-lg border transition-colors disabled:opacity-40"
+              style={{ borderColor: "var(--app-border)", color: "var(--app-text-muted)" }}
+              title={t("ed.redo")}
+            >
+              ↷
+            </button>
 
             <button
               type="button"
@@ -305,9 +387,13 @@ export default function PortfolioEditor() {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={toggleTheme}
+            {autoSaved && (
+              <span className="hidden sm:inline text-[10px] text-app-muted">{t("ed.autoSaved")}</span>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleTheme}
             className="sm:hidden flex items-center justify-center h-9 w-9 rounded-lg border shrink-0"
             style={{ borderColor: "var(--app-border)", color: "var(--app-text-muted)" }}
           >
@@ -342,7 +428,7 @@ export default function PortfolioEditor() {
                 type="button"
                 onClick={() => {
                   setActiveTab(tab.id);
-                  if (tab.id !== "sections") setSelectedSection(null);
+                  if (tab.id !== "sections") setSelectedSectionId(null);
                 }}
                 className="shrink-0 min-w-[4.5rem] flex-1 rounded-lg py-2 px-1.5 text-[10px] sm:text-xs font-medium transition-colors"
                 style={
@@ -364,20 +450,22 @@ export default function PortfolioEditor() {
               <ThemesPanel theme={theme} updateTheme={applyFullTheme} />
             )}
 
-            {activeTab === "sections" && !selectedSection && (
+            {activeTab === "sections" && !selectedSectionId && (
               <SectionsList
                 theme={theme}
+                platform={platform}
                 updateTheme={updateTheme}
+                updatePlatform={updatePlatform}
                 moveSection={moveSection}
-                onSelectSection={setSelectedSection}
+                onSelectSection={setSelectedSectionId}
               />
             )}
 
-            {activeTab === "sections" && selectedSection && (
+            {activeTab === "sections" && selectedSectionId && selectedInstance && (
               <div>
                 <button
                   type="button"
-                  onClick={() => setSelectedSection(null)}
+                  onClick={() => setSelectedSectionId(null)}
                   className="text-xs mb-4 flex items-center gap-1"
                   style={{ color: "var(--app-primary)" }}
                 >
@@ -385,9 +473,14 @@ export default function PortfolioEditor() {
                   {t("ed.backSections")}
                 </button>
                 <SectionEditorPanel
-                  sectionId={selectedSection}
+                  instanceId={selectedInstance.id}
+                  sectionType={selectedInstance.type}
                   theme={theme}
                   updateTheme={updateTheme}
+                  platform={platform}
+                  updatePlatform={updatePlatform}
+                  personalInfo={data?.personalInfo}
+                  updateProfile={updateProfile}
                 />
               </div>
             )}
@@ -396,6 +489,7 @@ export default function PortfolioEditor() {
               <LayoutPanel
                 theme={theme}
                 updateTheme={updateTheme}
+                profileLocation={data?.personalInfo.preferredLocation}
                 uploadingHero={uploadingHero}
                 onHeroUpload={async (file) => {
                   setUploadingHero(true);
@@ -413,6 +507,24 @@ export default function PortfolioEditor() {
                 }}
                 onClearHeroImage={() =>
                   updateTheme({ hero: { ...theme.hero, backgroundImage: "" } })
+                }
+                uploadingFooter={uploadingFooter}
+                onFooterUpload={async (file) => {
+                  setUploadingFooter(true);
+                  const form = new FormData();
+                  form.append("file", file);
+                  form.append("type", "hero");
+                  const res = await fetch("/api/upload", { method: "POST", body: form });
+                  const data = await res.json();
+                  if (res.ok && data.url) {
+                    updateTheme({
+                      footer: { ...theme.footer, backgroundImage: data.url },
+                    });
+                  }
+                  setUploadingFooter(false);
+                }}
+                onClearFooterImage={() =>
+                  updateTheme({ footer: { ...theme.footer, backgroundImage: "" } })
                 }
               />
             )}
@@ -464,32 +576,82 @@ export default function PortfolioEditor() {
 
 function SectionsList({
   theme,
+  platform,
   updateTheme,
+  updatePlatform,
   moveSection,
   onSelectSection,
 }: {
   theme: PortfolioTheme;
+  platform: PlatformData;
   updateTheme: (p: Partial<PortfolioTheme>) => void;
-  moveSection: (id: SectionId, dir: -1 | 1) => void;
-  onSelectSection: (id: SectionId) => void;
+  updatePlatform: (patch: Partial<PlatformData>) => void;
+  moveSection: (instanceId: string, dir: -1 | 1) => void;
+  onSelectSection: (instanceId: string) => void;
 }) {
-  const available = getAvailableSections(theme.sections.order);
+  function addSection(type: SectionId, sourceInstanceId?: string) {
+    const instance = createSectionInstance(type, theme.sections.order);
+    const source = sourceInstanceId
+      ? theme.sections.order.find((item) => item.id === sourceInstanceId)
+      : undefined;
+    const sourceStyle = source
+      ? theme.sectionStyles[source.id] ?? theme.sectionStyles[source.type] ?? DEFAULT_SECTION_STYLES[type]
+      : DEFAULT_SECTION_STYLES[type];
+    const sourceTitle = source
+      ? getInstanceLabel(source, theme.sections.order, theme.sections.titles)
+      : SECTION_LABELS[type];
 
-  function addSection(id: SectionId) {
-    updateTheme({
-      sections: { ...theme.sections, order: [...theme.sections.order, id] },
-    });
-  }
-
-  function removeSection(id: SectionId) {
-    if (MAIN_SECTIONS.includes(id) && theme.sections.order.filter((s) => MAIN_SECTIONS.includes(s)).length <= 1) {
-      return;
-    }
     updateTheme({
       sections: {
         ...theme.sections,
-        order: theme.sections.order.filter((s) => s !== id),
+        order: [...theme.sections.order, instance],
+        titles: {
+          ...theme.sections.titles,
+          [instance.id]: source ? `${sourceTitle} (copy)` : SECTION_LABELS[type],
+        },
       },
+      sectionStyles: {
+        ...theme.sectionStyles,
+        [instance.id]: { ...sourceStyle },
+      },
+    });
+
+    if (source && platform.sectionContent?.[source.id]) {
+      updatePlatform({
+        sectionContent: {
+          ...platform.sectionContent,
+          [instance.id]: structuredClone(platform.sectionContent[source.id]),
+        },
+      });
+    }
+  }
+
+  function duplicateSection(instanceId: string) {
+    const source = theme.sections.order.find((item) => item.id === instanceId);
+    if (!source) return;
+    addSection(source.type, instanceId);
+  }
+
+  function removeSection(instanceId: string) {
+    const instance = theme.sections.order.find((item) => item.id === instanceId);
+    if (!instance) return;
+    if (
+      MAIN_SECTIONS.includes(instance.type) &&
+      theme.sections.order.filter((item) => item.type === instance.type).length <= 1
+    ) {
+      return;
+    }
+    const titles = { ...theme.sections.titles };
+    const sectionStyles = { ...theme.sectionStyles };
+    delete titles[instanceId];
+    delete sectionStyles[instanceId];
+    updateTheme({
+      sections: {
+        ...theme.sections,
+        order: theme.sections.order.filter((item) => item.id !== instanceId),
+        titles,
+      },
+      sectionStyles,
     });
   }
 
@@ -497,9 +659,9 @@ function SectionsList({
     <>
       <PanelSection title="Active sections — click to edit">
         <div className="space-y-2">
-          {theme.sections.order.map((id, idx) => (
+          {theme.sections.order.map((instance, idx) => (
             <div
-              key={id}
+              key={instance.id}
               className={editorRowClass}
               style={editorRowStyle()}
             >
@@ -507,7 +669,7 @@ function SectionsList({
                 <button
                   type="button"
                   disabled={idx === 0}
-                  onClick={() => moveSection(id, -1)}
+                  onClick={() => moveSection(instance.id, -1)}
                   className="disabled:opacity-30"
                   style={{ color: "var(--app-text-muted)" }}
                 >
@@ -516,7 +678,7 @@ function SectionsList({
                 <button
                   type="button"
                   disabled={idx === theme.sections.order.length - 1}
-                  onClick={() => moveSection(id, 1)}
+                  onClick={() => moveSection(instance.id, 1)}
                   className="disabled:opacity-30"
                   style={{ color: "var(--app-text-muted)" }}
                 >
@@ -525,19 +687,31 @@ function SectionsList({
               </div>
               <button
                 type="button"
-                onClick={() => onSelectSection(id)}
+                onClick={() => onSelectSection(instance.id)}
                 className="flex-1 text-left text-sm transition-colors py-1 min-w-0"
                 style={{ color: "var(--app-text)" }}
               >
-                {SECTION_LABELS[id]}
+                {getInstanceLabel(instance, theme.sections.order, theme.sections.titles)}
                 <span className="text-xs ml-2" style={{ color: "var(--app-text-muted)" }}>
                   Edit →
                 </span>
               </button>
-              {!MAIN_SECTIONS.includes(id) && (
+              <button
+                type="button"
+                onClick={() => duplicateSection(instance.id)}
+                className="text-xs px-2 shrink-0"
+                style={{ color: "var(--app-text-muted)" }}
+                title="Duplicate section"
+              >
+                Dup
+              </button>
+              {!(
+                MAIN_SECTIONS.includes(instance.type) &&
+                theme.sections.order.filter((item) => item.type === instance.type).length <= 1
+              ) && (
                 <button
                   type="button"
-                  onClick={() => removeSection(id)}
+                  onClick={() => removeSection(instance.id)}
                   className="text-xs text-red-400 hover:text-red-300 px-2"
                 >
                   <AppIcon name="x" size={14} />
@@ -548,27 +722,25 @@ function SectionsList({
         </div>
       </PanelSection>
 
-      {available.length > 0 && (
-        <PanelSection title="Add section">
-          <div className="flex flex-wrap gap-2">
-            {available.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => addSection(id)}
-                className="px-3 py-1.5 text-xs rounded-lg border transition-colors"
-                style={{
-                  borderColor: "var(--app-primary)",
-                  color: "var(--app-primary)",
-                  background: "var(--app-primary-muted)",
-                }}
-              >
-                + {SECTION_LABELS[id]}
-              </button>
-            ))}
-          </div>
-        </PanelSection>
-      )}
+      <PanelSection title="Add section">
+        <div className="flex flex-wrap gap-2">
+          {ALL_SECTIONS.map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => addSection(type)}
+              className="px-3 py-1.5 text-xs rounded-lg border transition-colors"
+              style={{
+                borderColor: "var(--app-primary)",
+                color: "var(--app-primary)",
+                background: "var(--app-primary-muted)",
+              }}
+            >
+              + {SECTION_LABELS[type]}
+            </button>
+          ))}
+        </div>
+      </PanelSection>
 
       <PanelSection title="Global display options">
         <ToggleList
@@ -582,7 +754,16 @@ function SectionsList({
             { key: "showGradient", label: "Hero gradient" },
             { key: "showFooter", label: "Show footer" },
           ]}
-          values={theme.features as Record<string, boolean>}
+          values={{
+            showHeroPhoto: theme.features.showHeroPhoto,
+            showSocialLinks: theme.features.showSocialLinks,
+            showResumeInHero: theme.features.showResumeInHero,
+            showProjectImages: theme.features.showProjectImages,
+            showSkillLevels: theme.features.showSkillLevels,
+            showProjectStatus: theme.features.showProjectStatus,
+            showGradient: theme.features.showGradient,
+            showFooter: theme.features.showFooter,
+          }}
           onChange={(key, val) =>
             updateTheme({ features: { ...theme.features, [key]: val } as PortfolioTheme["features"] })
           }
@@ -642,112 +823,6 @@ function ColorsPanel({
             />
           ))}
         </div>
-      </PanelSection>
-    </>
-  );
-}
-
-function LayoutPanel({
-  theme,
-  updateTheme,
-  uploadingHero,
-  onHeroUpload,
-  onClearHeroImage,
-}: {
-  theme: PortfolioTheme;
-  updateTheme: (p: Partial<PortfolioTheme>) => void;
-  uploadingHero?: boolean;
-  onHeroUpload?: (file: File) => void;
-  onClearHeroImage?: () => void;
-}) {
-  const hero = theme.hero ?? {};
-
-  return (
-    <>
-      <PanelSection title="Hero background">
-        {hero.backgroundImage && (
-          <div className="mb-3 rounded-lg overflow-hidden border" style={{ borderColor: "var(--app-border)" }}>
-            <img src={hero.backgroundImage} alt="Hero background" className="w-full h-24 object-cover" />
-          </div>
-        )}
-        <div className="flex gap-2">
-          <label className="btn-secondary text-xs cursor-pointer flex-1 text-center">
-            {uploadingHero ? "Uploading..." : "Upload image"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={uploadingHero}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file && onHeroUpload) onHeroUpload(file);
-              }}
-            />
-          </label>
-          {hero.backgroundImage && (
-            <button type="button" onClick={onClearHeroImage} className="btn-secondary text-xs">
-              Remove
-            </button>
-          )}
-        </div>
-      </PanelSection>
-
-      <PanelSection title="Hero gradient colors">
-        <div className="space-y-3">
-          <ColorInput
-            label="Gradient from"
-            value={hero.gradientFrom || theme.colors.primary}
-            onChange={(v) => updateTheme({ hero: { ...hero, gradientFrom: v } })}
-          />
-          <ColorInput
-            label="Gradient to"
-            value={hero.gradientTo || theme.colors.accent}
-            onChange={(v) => updateTheme({ hero: { ...hero, gradientTo: v } })}
-          />
-          <div>
-            <label className="text-xs block mb-1" style={{ color: "var(--app-text-muted)" }}>
-              Image overlay ({Math.round((hero.overlayOpacity ?? 0.55) * 100)}%)
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={hero.overlayOpacity ?? 0.55}
-              onChange={(e) =>
-                updateTheme({ hero: { ...hero, overlayOpacity: parseFloat(e.target.value) } })
-              }
-              className="w-full"
-            />
-          </div>
-        </div>
-      </PanelSection>
-
-      {[
-        { title: "Hero style", key: "heroStyle", options: ["centered", "split", "minimal"] },
-        { title: "Hero alignment", key: "heroAlignment", options: ["left", "center", "right"] },
-        { title: "Content width", key: "contentWidth", options: ["narrow", "medium", "wide"] },
-        { title: "Spacing", key: "spacing", options: ["compact", "normal", "relaxed"] },
-        { title: "Border radius", key: "borderRadius", options: ["none", "md", "lg", "full"] },
-      ].map(({ title, key, options }) => (
-        <PanelSection key={key} title={title}>
-          <OptionGroup
-            value={theme.layout[key as keyof typeof theme.layout] as string}
-            options={options.map((o) => ({ value: o, label: o.charAt(0).toUpperCase() + o.slice(1) }))}
-            onChange={(v) => updateTheme({ layout: { ...theme.layout, [key]: v } })}
-          />
-        </PanelSection>
-      ))}
-      <PanelSection title="Heading font">
-        <OptionGroup
-          value={theme.typography.headingFont}
-          options={[
-            { value: "serif", label: "Serif" },
-            { value: "sans", label: "Sans" },
-            { value: "mono", label: "Mono" },
-          ]}
-          onChange={(v) => updateTheme({ typography: { headingFont: v as PortfolioTheme["typography"]["headingFont"] } })}
-        />
       </PanelSection>
     </>
   );

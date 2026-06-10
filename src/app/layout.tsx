@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
+import "./portfolio-animations.css";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",

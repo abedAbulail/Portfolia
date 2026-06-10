@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useLocale } from "@/context/LocaleContext";
+import CvUpload from "@/components/CvUpload";
 
 interface AccountData {
   email: string;
@@ -17,19 +18,52 @@ export default function AccountPageClient() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [resumeUrl, setResumeUrl] = useState("");
+  const [resumeFilename, setResumeFilename] = useState("");
+  const [reimporting, setReimporting] = useState(false);
+  const [cvMessage, setCvMessage] = useState("");
 
   useEffect(() => {
-    fetch("/api/dashboard/account")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.account) {
-          setAccount(d.account);
-          setEmail(d.account.email);
+    Promise.all([fetch("/api/dashboard/account"), fetch("/api/dashboard")]).then(([accRes, dashRes]) =>
+      Promise.all([accRes.json(), dashRes.json()]).then(([acc, dash]) => {
+        if (acc.account) {
+          setAccount(acc.account);
+          setEmail(acc.account.email);
         }
-      });
+        if (dash.personalInfo) {
+          const url = dash.personalInfo.resumeUrl || dash.personalInfo.resume?.[0]?.url;
+          setResumeUrl(url || "");
+          if (dash.personalInfo.resume?.[0]?.filename) {
+            setResumeFilename(dash.personalInfo.resume[0].filename);
+          }
+        }
+      })
+    );
   }, []);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleReimportCv(file: File) {
+    setReimporting(true);
+    setCvMessage("");
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/cv/parse", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Failed to import CV.");
+        return;
+      }
+      setResumeUrl(json.resumeUrl);
+      setCvMessage("Portfolio updated from your new CV.");
+    } catch {
+      setError("Import failed. Please try again.");
+    } finally {
+      setReimporting(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setMessage("");
@@ -77,20 +111,56 @@ export default function AccountPageClient() {
 
   return (
     <div dir={dir} className="max-w-lg">
-      <h1 className="font-display text-2xl font-bold mb-1" style={{ color: "var(--app-text)" }}>
-        {t("acc.title")}
-      </h1>
-      <p className="text-sm mb-8" style={{ color: "var(--app-text-muted)" }}>
-        {t("acc.subtitle")}
-      </p>
+      <h1 className="page-title">{t("acc.title")}</h1>
+      <p className="page-subtitle">{t("acc.subtitle")}</p>
 
-      <div className="card mb-6">
-        <p className="text-sm mb-1" style={{ color: "var(--app-text-muted)" }}>
-          {t("acc.createdAt")}
-        </p>
-        <p className="font-medium" style={{ color: "var(--app-text)" }}>
-          {createdDate}
-        </p>
+      <div className="card mb-6 flex flex-wrap gap-3 items-center justify-between">
+        <div>
+          <p className="text-sm mb-1" style={{ color: "var(--app-text-muted)" }}>
+            {t("acc.createdAt")}
+          </p>
+          <p className="font-medium" style={{ color: "var(--app-text)" }}>
+            {createdDate}
+          </p>
+        </div>
+        <a href="/api/cv/generate" className="btn-secondary text-sm">
+          Generate CV
+        </a>
+      </div>
+
+      <div className="card mb-6 space-y-4">
+        <h2 className="text-sm font-semibold" style={{ color: "var(--app-text)" }}>
+          Resume / CV
+        </h2>
+        <CvUpload
+          currentUrl={resumeUrl}
+          currentFilename={resumeFilename}
+          onUpload={(url, filename) => {
+            setResumeUrl(url);
+            setResumeFilename(filename);
+          }}
+        />
+        <div>
+          <p className="text-xs mb-2" style={{ color: "var(--app-text-muted)" }}>
+            Upload a new CV to re-import your profile, projects, and skills.
+          </p>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            disabled={reimporting}
+            className="input-field text-sm block w-full"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleReimportCv(f);
+            }}
+          />
+          {reimporting && (
+            <p className="text-xs mt-2" style={{ color: "var(--app-primary)" }}>
+              Uploading and updating your portfolio…
+            </p>
+          )}
+          {cvMessage && <p className="text-xs mt-2 text-emerald-500">{cvMessage}</p>}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="card space-y-5">

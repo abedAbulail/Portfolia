@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { LocaleProvider } from "@/context/LocaleContext";
 import { AppThemeProvider } from "@/context/AppThemeContext";
 import DashboardShell from "@/components/DashboardShell";
+import SetupGate from "@/components/SetupGate";
 
 export default async function DashboardLayout({
   children,
@@ -15,7 +16,9 @@ export default async function DashboardLayout({
   return (
     <AppThemeProvider>
       <LocaleProvider>
-        <DashboardShell slug={session.slug}>{children}</DashboardShell>
+        <SetupGate>
+          <DashboardShell slug={session.slug}>{children}</DashboardShell>
+        </SetupGate>
       </LocaleProvider>
     </AppThemeProvider>
   );

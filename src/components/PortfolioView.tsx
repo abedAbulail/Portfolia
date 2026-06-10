@@ -1,18 +1,50 @@
 import type { ReactNode } from "react";
 import type { PortfolioData } from "@/lib/types";
-import type { PortfolioTheme, SectionId, ProfileI18n } from "@/lib/portfolio-theme";
+import type { PortfolioTheme, SectionId, SectionInstance, ProfileI18n } from "@/lib/portfolio-theme";
 import {
   getContentMaxWidth,
   getSpacingClass,
   getRadiusClass,
   getHeadingFontClass,
   themeToCssVars,
+  resolveSectionOrder,
+  getSectionTitleForInstance,
+  getSectionStyleForInstance,
 } from "@/lib/portfolio-theme";
 import { SectionShell, ThemedButton } from "@/components/portfolio/SectionShell";
 import ContactFormSection from "@/components/portfolio/ContactFormSection";
+import TestimonialsSection from "@/components/portfolio/TestimonialsSection";
+import GallerySection from "@/components/portfolio/GallerySection";
+import VideoSection from "@/components/portfolio/VideoSection";
+import CustomHtmlSection from "@/components/portfolio/CustomHtmlSection";
+import PortfolioNavbar from "@/components/portfolio/PortfolioNavbar";
+import BookingWidget from "@/components/portfolio/BookingWidget";
+import PortfolioHero from "@/components/portfolio/heroes/PortfolioHero";
+import PortfolioFooter from "@/components/portfolio/PortfolioFooter";
+import { ScrollProgressBar, LiveChatWidget, VisitorsCounter } from "@/components/portfolio/widgets/PortfolioWidgets";
+import { ThemeOverlays } from "@/components/portfolio/animations/ThemeOverlays";
+import { getThemeAnimationConfig } from "@/lib/theme-animation-config";
+import CountUp from "@/components/portfolio/animations/CountUp";
+import {
+  TimelineSection,
+  TechStackSection,
+  CaseStudySection,
+  ServicesSection,
+  BlogSection,
+  OpenSourceSection,
+  AwardsSection,
+  LanguagesSection,
+} from "@/components/portfolio/sections/ExtendedSections";
 import { AppIcon, type AppIconName } from "@/components/icons/AppIcons";
 import type { PersonalInfo, Project, Skill } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
+import {
+  getInstanceCustomHtml,
+  getInstanceGallery,
+  getInstanceTestimonials,
+  getInstanceVideoUrl,
+} from "@/lib/platform-data";
+import { resolveMapEmbedUrl } from "@/lib/background-utils";
 
 interface PortfolioViewProps {
   data: PortfolioData;
@@ -20,6 +52,8 @@ interface PortfolioViewProps {
   locale: Locale;
   t: (key: string) => string;
   sectionLabel: (locale: Locale, id: string) => string;
+  pageSlug?: string;
+  sectionOrder?: string[];
 }
 
 function getLocalizedProfile(
@@ -39,16 +73,16 @@ function getLocalizedProfile(
 }
 
 function getSectionTitle(
-  id: SectionId,
+  instance: SectionInstance,
   theme: PortfolioTheme,
   locale: Locale,
   sectionLabelFn: (locale: Locale, id: string) => string
 ): string {
-  return theme.sections.titles[id] || sectionLabelFn(locale, id);
+  return getSectionTitleForInstance(instance, theme.sections.titles, sectionLabelFn, locale);
 }
 
-export default function PortfolioView({ data, slug, locale, t, sectionLabel }: PortfolioViewProps) {
-  const { projects, skills, theme } = data;
+export default function PortfolioView({ data, slug, locale, t, sectionLabel, pageSlug = "", sectionOrder }: PortfolioViewProps) {
+  const { projects, skills, theme, platform } = data;
   const personalInfo = getLocalizedProfile(data.personalInfo, theme, locale);
   const cssVars = themeToCssVars(theme);
   const maxW = getContentMaxWidth(theme.layout.contentWidth);
@@ -60,147 +94,44 @@ export default function PortfolioView({ data, slug, locale, t, sectionLabel }: P
     (personalInfo.photoUrl || personalInfo.profilePhoto?.[0]?.url);
   const resumeUrl = personalInfo.resumeUrl || personalInfo.resume?.[0]?.url;
   const cvDownloadUrl = slug ? `/api/track/cv/${slug}` : resumeUrl;
-
-  const hero = theme.hero ?? {};
-  const gradientFrom = hero.gradientFrom || theme.colors.primary;
-  const gradientTo = hero.gradientTo || theme.colors.accent;
-  const overlayOpacity = hero.overlayOpacity ?? 0.55;
-
-  const heroAlign =
-    theme.layout.heroAlignment === "left"
-      ? "text-left items-start"
-      : theme.layout.heroAlignment === "right"
-        ? "text-right items-end"
-        : "text-center items-center";
+  const linkedInShare = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL || ""}/portfolio/${slug}`)}`;
+  const activeSections = resolveSectionOrder(theme.sections.order, sectionOrder);
+  const pages = platform?.pages || [];
+  const animConfig = getThemeAnimationConfig(theme.activeThemeId);
 
   return (
     <div
-      className="min-h-screen"
+      className="pf-root min-h-screen"
+      data-theme={theme.activeThemeId || "violet-pro"}
       style={{ ...cssVars, backgroundColor: theme.colors.background, color: theme.colors.text }}
     >
-      {/* Hero */}
-      <section
-        className="relative overflow-hidden border-b"
-        style={{ borderColor: `${theme.colors.textMuted}20` }}
-      >
-        {hero.backgroundImage && (
-          <>
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${hero.backgroundImage})` }}
-            />
-            <div
-              className="absolute inset-0"
-              style={{ backgroundColor: theme.colors.background, opacity: overlayOpacity }}
-            />
-          </>
-        )}
-        {(theme.features.showGradient || hero.gradientFrom || hero.gradientTo) && (
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(135deg, ${gradientFrom}${hero.backgroundImage ? "cc" : "30"} 0%, transparent 50%, ${gradientTo}${hero.backgroundImage ? "99" : "15"} 100%)`,
-            }}
-          />
-        )}
-        <div
-          className={`relative mx-auto px-6 ${maxW} ${
-            theme.layout.heroStyle === "split"
-              ? "flex flex-col md:flex-row gap-10 items-center md:items-start py-16"
-              : `flex flex-col ${heroAlign} ${theme.layout.heroStyle === "minimal" ? "py-10" : "py-20"}`
-          }`}
-        >
-          {photo && theme.layout.heroStyle !== "minimal" && (
-            <img
-              src={photo}
-              alt={personalInfo.name}
-              className={`object-cover shrink-0 ${
-                theme.layout.heroStyle === "split"
-                  ? `h-40 w-40 md:h-48 md:w-48 ${radius}`
-                  : "h-28 w-28 rounded-full mx-auto mb-6"
-              }`}
-              style={{ boxShadow: `0 0 0 4px ${theme.colors.primary}40` }}
-            />
-          )}
-          <div className={theme.layout.heroStyle === "split" ? "flex-1" : "w-full"}>
-            <h1
-              className={`${headingFont} font-bold mb-3 ${
-                theme.layout.heroStyle === "minimal" ? "text-3xl" : "text-4xl sm:text-5xl"
-              }`}
-            >
-              {personalInfo.name}
-            </h1>
-            {personalInfo.currentPosition && (
-              <p className="text-xl mb-2" style={{ color: theme.colors.primary }}>
-                {personalInfo.currentPosition}
-              </p>
-            )}
-            <div
-              className="flex flex-wrap gap-3 text-sm"
-              style={{
-                color: theme.colors.textMuted,
-                justifyContent:
-                  theme.layout.heroAlignment === "center"
-                    ? "center"
-                    : theme.layout.heroAlignment === "right"
-                      ? "flex-end"
-                      : "flex-start",
-              }}
-            >
-              {personalInfo.preferredLocation && (
-                <span className="inline-flex items-center gap-1">
-                  <AppIcon name="map-pin" size={14} style={{ color: theme.colors.primary }} />
-                  {personalInfo.preferredLocation}
-                </span>
-              )}
-              {personalInfo.industry && <span>· {personalInfo.industry}</span>}
-            </div>
-            <div
-              className="mt-6 flex flex-wrap gap-3"
-              style={{
-                justifyContent:
-                  theme.layout.heroAlignment === "center"
-                    ? "center"
-                    : theme.layout.heroAlignment === "right"
-                      ? "flex-end"
-                      : "flex-start",
-              }}
-            >
-              {theme.features.showSocialLinks && personalInfo.linkedin && (
-                <SocialLink href={personalInfo.linkedin} theme={theme} radius={radius}>
-                  LinkedIn
-                </SocialLink>
-              )}
-              {theme.features.showSocialLinks && personalInfo.personalWebsite && (
-                <SocialLink href={personalInfo.personalWebsite} theme={theme} radius={radius}>
-                  Website
-                </SocialLink>
-              )}
-              {theme.features.showSocialLinks && personalInfo.email && (
-                <SocialLink href={`mailto:${personalInfo.email}`} theme={theme} radius={radius}>
-                  Email
-                </SocialLink>
-              )}
-              {theme.features.showResumeInHero && resumeUrl && cvDownloadUrl && (
-                <ThemedButton href={cvDownloadUrl} theme={theme} radius={radius}>
-                  <span className="inline-flex items-center gap-2">
-                    <AppIcon name="download" size={16} />
-                    {t("pf.downloadCv")}
-                  </span>
-                </ThemedButton>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+      <ThemeOverlays config={animConfig} theme={theme} />
+      {theme.features.showScrollProgress && <ScrollProgressBar theme={theme} />}
+      {pages.length > 1 && (
+        <PortfolioNavbar slug={slug} theme={theme} pages={pages} currentPageSlug={pageSlug} />
+      )}
+
+      <PortfolioHero
+        theme={theme}
+        personalInfo={personalInfo}
+        photo={photo || undefined}
+        radius={radius}
+        headingFont={headingFont}
+        cvDownloadUrl={cvDownloadUrl}
+        resumeUrl={resumeUrl}
+        linkedInShare={linkedInShare}
+        t={t}
+        skillBadges={platform?.skillBadges}
+      />
 
       <div className={`mx-auto px-6 ${maxW} ${spacing}`}>
-        {theme.sections.order.map((sectionId) =>
-          renderSection(sectionId, {
+        {activeSections.map((instance) =>
+          renderSection(instance, {
             personalInfo,
             projects,
             skills,
             theme,
+            platform,
             headingFont,
             radius,
             resumeUrl,
@@ -211,30 +142,31 @@ export default function PortfolioView({ data, slug, locale, t, sectionLabel }: P
             sectionLabel,
           })
         )}
+        {platform?.booking?.enabled && (
+          <section className="py-8">
+            <BookingWidget slug={slug} theme={theme} />
+          </section>
+        )}
       </div>
 
       {theme.features.showFooter && (
-        <footer
-          className="border-t py-8 text-center text-sm"
-          style={{ borderColor: `${theme.colors.textMuted}20`, color: theme.colors.textMuted }}
-        >
-          {t("pf.builtWith")}{" "}
-          <a href="/" style={{ color: theme.colors.primary }}>
-            Portfolia
-          </a>
-        </footer>
+        <PortfolioFooter theme={theme} personalInfo={personalInfo} t={t} contentWidthClass={maxW} />
       )}
+
+      <LiveChatWidget theme={theme} />
+      <VisitorsCounter slug={slug} theme={theme} />
     </div>
   );
 }
 
 function renderSection(
-  sectionId: SectionId,
+  instance: SectionInstance,
   ctx: {
     personalInfo: PersonalInfo;
     projects: Project[];
     skills: Skill[];
     theme: PortfolioTheme;
+    platform?: PortfolioData["platform"];
     headingFont: string;
     radius: string;
     resumeUrl?: string;
@@ -245,31 +177,35 @@ function renderSection(
     sectionLabel: (locale: Locale, id: string) => string;
   }
 ) {
-  const { personalInfo, projects, skills, theme, headingFont, radius, resumeUrl, cvDownloadUrl, slug, locale, t, sectionLabel } = ctx;
+  const { personalInfo, projects, skills, theme, platform, headingFont, radius, resumeUrl, cvDownloadUrl, slug, locale, t, sectionLabel } = ctx;
+  const sectionId = instance.type;
+  const instanceId = instance.id;
 
-  const style = theme.sectionStyles[sectionId];
-  const title = getSectionTitle(sectionId, theme, locale, sectionLabel);
+  const style = getSectionStyleForInstance(instance, theme.sectionStyles);
+  const title = getSectionTitle(instance, theme, locale, sectionLabel);
 
   switch (sectionId) {
-    case "about":
-      if (!personalInfo.bio && !personalInfo.professionalSummary) return null;
+    case "about": {
+      const summary = theme.content.aboutSummary || personalInfo.professionalSummary;
+      const bio = theme.content.aboutBio || personalInfo.bio;
+      const displayBio = bio && bio.trim() !== (summary || "").trim() ? bio : undefined;
+      if (!summary && !displayBio) return null;
       return (
-        <SectionShell key="about" id="about" theme={theme} style={style} headingFont={headingFont} title={title}>
-          {personalInfo.professionalSummary && (
-            <p className="text-lg leading-relaxed mb-4">{personalInfo.professionalSummary}</p>
-          )}
-          {personalInfo.bio && (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          {summary && <p className="text-lg leading-relaxed mb-4">{summary}</p>}
+          {displayBio && (
             <p className="leading-relaxed whitespace-pre-line" style={{ color: theme.colors.textMuted }}>
-              {personalInfo.bio}
+              {displayBio}
             </p>
           )}
         </SectionShell>
       );
+    }
 
     case "experience":
       if (!theme.content.experience.length) return null;
       return (
-        <SectionShell key="experience" id="experience" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <ExperienceBlock items={theme.content.experience} theme={theme} radius={radius} layout={style.layout || "timeline"} />
         </SectionShell>
       );
@@ -277,7 +213,7 @@ function renderSection(
     case "stats":
       if (!theme.content.stats.length) return null;
       return (
-        <SectionShell key="stats" id="stats" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <StatsBlock items={theme.content.stats} theme={theme} radius={radius} layout={style.layout || "row"} />
         </SectionShell>
       );
@@ -285,10 +221,10 @@ function renderSection(
     case "skills":
       if (!skills.length) return null;
       return (
-        <SectionShell key="skills" id="skills" theme={theme} style={style} headingFont={headingFont} title={title}>
-          {personalInfo.skillsOverview && (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          {(theme.content.skillsOverview || personalInfo.skillsOverview) && (
             <p className="mb-6" style={{ color: theme.colors.textMuted }}>
-              {personalInfo.skillsOverview}
+              {theme.content.skillsOverview || personalInfo.skillsOverview}
             </p>
           )}
           <SkillsBlock skills={skills} theme={theme} radius={radius} />
@@ -298,14 +234,14 @@ function renderSection(
     case "projects":
       if (!projects.length) return null;
       return (
-        <SectionShell key="projects" id="projects" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <ProjectsBlock projects={projects} theme={theme} radius={radius} />
         </SectionShell>
       );
 
     case "contact":
       return (
-        <SectionShell key="contact" id="contact" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <ContactBlock personalInfo={personalInfo} theme={theme} radius={radius} note={theme.content.contactNote} layout={style.layout || "cards"} />
         </SectionShell>
       );
@@ -313,7 +249,7 @@ function renderSection(
     case "resume":
       if (!resumeUrl) return null;
       return (
-        <SectionShell key="resume" id="resume" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <div className={`flex flex-col gap-4 ${style.alignment === "center" ? "items-center" : style.alignment === "right" ? "items-end" : "items-start"}`}>
             <p style={{ color: theme.colors.textMuted }}>{theme.content.resumeText}</p>
             <ThemedButton href={cvDownloadUrl || resumeUrl!} theme={theme} radius={radius}>
@@ -328,7 +264,7 @@ function renderSection(
 
     case "contactform":
       return (
-        <SectionShell key="contactform" id="contactform" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <ContactFormSection
             slug={slug}
             theme={theme}
@@ -341,7 +277,7 @@ function renderSection(
 
     case "cta":
       return (
-        <SectionShell key="cta" id="cta" theme={theme} style={style} headingFont={headingFont} title={title}>
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
           <div className={`flex flex-col gap-3 ${style.alignment === "center" ? "items-center text-center" : style.alignment === "right" ? "items-end text-right" : "items-start"}`}>
             <h3 className={`${headingFont} text-xl font-semibold`}>{theme.content.cta.headline}</h3>
             <p style={{ color: theme.colors.textMuted }}>{theme.content.cta.subtext}</p>
@@ -353,6 +289,130 @@ function renderSection(
               {theme.content.cta.buttonText}
             </ThemedButton>
           </div>
+        </SectionShell>
+      );
+
+    case "location": {
+      const mapLocation = personalInfo.preferredLocation || "";
+      const mapUrl = resolveMapEmbedUrl(theme.content.locationMapUrl, mapLocation);
+      if (!mapLocation && !mapUrl) return null;
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <LocationBlock
+            personalInfo={personalInfo}
+            theme={theme}
+            note={theme.content.locationNote}
+            mapUrl={mapUrl}
+            radius={radius}
+            layout={style.layout || "map"}
+            alignment={style.alignment}
+          />
+        </SectionShell>
+      );
+    }
+
+    case "testimonials": {
+      const items = platform
+        ? getInstanceTestimonials(platform, instanceId, sectionId, theme.sections.order)
+        : [];
+      if (!items.length) return null;
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <TestimonialsSection items={items} theme={theme} layout={style.layout} />
+        </SectionShell>
+      );
+    }
+
+    case "gallery": {
+      const items = platform ? getInstanceGallery(platform, instanceId, sectionId, theme.sections.order) : [];
+      if (!items.length) return null;
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <GallerySection items={items} theme={theme} columns={style.columns} mediaHeight={style.mediaHeight} />
+        </SectionShell>
+      );
+    }
+
+    case "video": {
+      const legacyUrl = platform ? getInstanceVideoUrl(platform, instanceId, sectionId, theme.sections.order) : "";
+      if (!theme.content.videos?.length && !legacyUrl) return null;
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <VideoSection
+            videos={theme.content.videos}
+            legacyUrl={legacyUrl}
+            theme={theme}
+            mediaHeight={style.mediaHeight}
+          />
+        </SectionShell>
+      );
+    }
+
+    case "customHtml": {
+      const html = platform
+        ? getInstanceCustomHtml(platform, instanceId, sectionId, theme.sections.order)
+        : "";
+      if (!html.trim()) return null;
+      return (
+        <section key={instanceId} id={instanceId} className="w-full min-w-0 overflow-x-hidden">
+          <CustomHtmlSection html={html} theme={theme} style={style} />
+        </section>
+      );
+    }
+
+    case "timeline":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <TimelineSection content={theme.content} theme={theme} />
+        </SectionShell>
+      );
+
+    case "techStack":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <TechStackSection content={theme.content} theme={theme} />
+        </SectionShell>
+      );
+
+    case "caseStudy":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <CaseStudySection content={theme.content} theme={theme} />
+        </SectionShell>
+      );
+
+    case "services":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <ServicesSection content={theme.content} theme={theme} columns={style.columns} />
+        </SectionShell>
+      );
+
+    case "blog":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <BlogSection content={theme.content} theme={theme} />
+        </SectionShell>
+      );
+
+    case "openSource":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <OpenSourceSection content={theme.content} theme={theme} />
+        </SectionShell>
+      );
+
+    case "awards":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <AwardsSection content={theme.content} theme={theme} />
+        </SectionShell>
+      );
+
+    case "languages":
+      return (
+        <SectionShell key={instanceId} id={instanceId} theme={theme} style={style} headingFont={headingFont} title={title}>
+          <LanguagesSection content={theme.content} theme={theme} />
         </SectionShell>
       );
 
@@ -445,7 +505,9 @@ function StatsBlock({
     <div className={gridClass}>
       {items.map((stat) => (
         <div key={stat.id} className={`text-center px-4 py-3 ${layout === "grid" ? `border ${radius}` : ""}`} style={layout === "grid" ? { borderColor: `${theme.colors.textMuted}20` } : undefined}>
-          <p className="text-3xl font-bold" style={{ color: theme.colors.primary }}>{stat.value}</p>
+          <p className="text-3xl font-bold" style={{ color: theme.colors.primary }}>
+            <CountUp value={stat.value} glow />
+          </p>
           <p className="text-sm mt-1" style={{ color: theme.colors.textMuted }}>{stat.label}</p>
         </div>
       ))}
@@ -459,7 +521,7 @@ function SkillsBlock({ skills, theme, radius }: { skills: Skill[]; theme: Portfo
     return (
       <div className="flex flex-wrap gap-2">
         {skills.map((skill) => (
-          <span key={skill.id} className={`px-4 py-2 text-sm font-medium border ${radius}`} style={{ backgroundColor: `${theme.colors.primary}20`, color: theme.colors.primary, borderColor: `${theme.colors.primary}30` }}>
+          <span key={skill.id} className={`pf-skill-tag px-4 py-2 text-sm font-medium border ${radius}`} style={{ backgroundColor: `${theme.colors.primary}20`, color: theme.colors.primary, borderColor: `${theme.colors.primary}30` }}>
             {skill.skillName}
             {theme.features.showSkillLevels && skill.proficiencyLevel && (
               <span className="opacity-60 ml-1">· {skill.proficiencyLevel}</span>
@@ -487,9 +549,16 @@ function SkillsBlock({ skills, theme, radius }: { skills: Skill[]; theme: Portfo
   );
 }
 
+function skillLevelPercent(level?: string): number {
+  const map: Record<string, number> = { beginner: 25, intermediate: 50, advanced: 75, expert: 95 };
+  if (!level) return 70;
+  return map[level.toLowerCase()] ?? 70;
+}
+
 function SkillCard({ skill, theme, radius, compact }: { skill: Skill; theme: PortfolioTheme; radius: string; compact?: boolean }) {
+  const pct = skillLevelPercent(skill.proficiencyLevel);
   return (
-    <div className={`border p-5 ${radius}`} style={{ borderColor: `${theme.colors.textMuted}20`, backgroundColor: `${theme.colors.surface}80` }}>
+    <div className={`pf-card-hover border p-5 ${radius}`} style={{ borderColor: `${theme.colors.textMuted}20`, backgroundColor: `${theme.colors.surface}80` }}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="font-semibold">{skill.skillName}</h3>
         {theme.features.showSkillLevels && skill.proficiencyLevel && (
@@ -498,6 +567,11 @@ function SkillCard({ skill, theme, radius, compact }: { skill: Skill; theme: Por
           </span>
         )}
       </div>
+      {theme.features.showSkillLevels && !compact && (
+        <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: `${theme.colors.textMuted}20`, ["--pf-skill-width" as string]: `${pct}%` }}>
+          <div className="pf-skill-fill h-full rounded-full" style={{ background: theme.colors.primary }} />
+        </div>
+      )}
       {!compact && skill.skillDescription && (
         <p className="text-sm" style={{ color: theme.colors.textMuted }}>{skill.skillDescription}</p>
       )}
@@ -537,7 +611,7 @@ function ProjectsBlock({ projects, theme, radius }: { projects: Project[]; theme
 function ProjectCard({ project, theme, radius, compact, card }: { project: Project; theme: PortfolioTheme; radius: string; compact?: boolean; card?: boolean }) {
   const image = theme.features.showProjectImages && (project.imageUrl || project.projectImages?.[0]?.url);
   return (
-    <article className={`border overflow-hidden ${radius}`} style={{ borderColor: `${theme.colors.textMuted}20`, backgroundColor: `${theme.colors.surface}80` }}>
+    <article className={`pf-card-hover border overflow-hidden ${radius} ${!compact && !card ? "pf-list-hover" : ""}`} style={{ borderColor: `${theme.colors.textMuted}20`, backgroundColor: `${theme.colors.surface}80` }}>
       {image && <img src={image} alt={project.projectName} className={`w-full object-cover ${card ? "h-40" : compact ? "h-36" : "h-48"}`} />}
       <div className={compact || card ? "p-4" : "p-6"}>
         <h3 className={`font-semibold ${card ? "text-base" : "text-xl"}`}>{project.projectName}</h3>
@@ -551,6 +625,89 @@ function ProjectCard({ project, theme, radius, compact, card }: { project: Proje
         )}
       </div>
     </article>
+  );
+}
+
+function LocationBlock({
+  personalInfo,
+  theme,
+  note,
+  mapUrl,
+  radius,
+  layout,
+  alignment,
+}: {
+  personalInfo: PersonalInfo;
+  theme: PortfolioTheme;
+  note: string;
+  mapUrl: string;
+  radius: string;
+  layout: string;
+  alignment: string;
+}) {
+  const mapsLink = personalInfo.preferredLocation
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(personalInfo.preferredLocation)}`
+    : undefined;
+  const alignClass =
+    alignment === "center" ? "items-center text-center" : alignment === "right" ? "items-end text-right" : "items-start";
+
+  if (layout === "minimal") {
+    return (
+      <div className={`flex flex-col gap-3 ${alignClass}`}>
+        {note && <p style={{ color: theme.colors.textMuted }}>{note}</p>}
+        {personalInfo.preferredLocation && (
+          <a
+            href={mapsLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-2 px-4 py-2 border ${radius}`}
+            style={{ borderColor: `${theme.colors.textMuted}30`, color: theme.colors.primary }}
+          >
+            <AppIcon name="map-pin" size={16} />
+            {personalInfo.preferredLocation}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {note && <p style={{ color: theme.colors.textMuted }}>{note}</p>}
+      <div className={`grid gap-0 overflow-hidden border ${radius} ${layout === "split" ? "md:grid-cols-2" : "grid-cols-1"}`} style={{ borderColor: `${theme.colors.textMuted}20` }}>
+        <div className="p-6" style={{ backgroundColor: `${theme.colors.surface}80` }}>
+          {personalInfo.preferredLocation ? (
+            <a
+              href={mapsLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-lg font-medium hover:underline"
+              style={{ color: theme.colors.text }}
+            >
+              <AppIcon name="map-pin" size={18} style={{ color: theme.colors.primary }} />
+              {personalInfo.preferredLocation}
+            </a>
+          ) : (
+            <p style={{ color: theme.colors.textMuted }}>Add your location in Profile settings.</p>
+          )}
+        </div>
+        {(mapUrl || layout === "map") && (
+          <div className="min-h-[14rem] flex items-center justify-center" style={{ background: `${theme.colors.primary}08` }}>
+            {mapUrl ? (
+              <iframe
+                title="Location map"
+                src={mapUrl}
+                className="w-full h-full min-h-[14rem] border-0"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <AppIcon name="map-pin" size={40} style={{ color: theme.colors.primary, opacity: 0.35 }} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

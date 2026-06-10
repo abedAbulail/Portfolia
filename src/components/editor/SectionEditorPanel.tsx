@@ -1,24 +1,85 @@
 "use client";
 
-import type { PortfolioTheme, SectionId, SectionStyle, ExperienceItem, StatItem } from "@/lib/portfolio-theme";
-import { SECTION_LABELS } from "@/lib/portfolio-theme";
-import { AppIcon } from "@/components/icons/AppIcons";
-import { OptionGroup, PanelSection } from "./EditorShared";
+import type { PortfolioTheme, SectionId, SectionStyle, ColumnLayout, BorderRadius, ShadowStyle } from "@/lib/portfolio-theme";
+import { SECTION_LABELS, getSectionStyleForInstance, getInstanceLabel } from "@/lib/portfolio-theme";
+import type { PlatformData, SectionInstanceContent } from "@/lib/platform-data";
+import { buildMapEmbedUrl } from "@/lib/background-utils";
+import {
+  getInstanceCustomHtml,
+  getInstanceGallery,
+  getInstanceTestimonials,
+  getInstanceVideoUrl,
+} from "@/lib/platform-data";
+import type { PersonalInfo } from "@/lib/types";
+import { ColorInput, OptionGroup, PanelSection } from "./EditorShared";
+import {
+  AboutContentEditor,
+  SkillsOverviewEditor,
+  ExperienceEditor,
+  EducationEditor,
+  StatsEditor,
+  TechStackEditor,
+  ServicesEditor,
+  CaseStudiesEditor,
+  BlogEditor,
+  OpenSourceEditor,
+  AwardsEditor,
+  LanguagesEditor,
+  CtaEditor,
+  VideosEditor,
+  TestimonialsEditor,
+  GalleryEditor,
+  CustomHtmlEditor,
+  ProjectsNote,
+  SkillsNote,
+} from "./SectionContentEditors";
 
 interface SectionEditorPanelProps {
-  sectionId: SectionId;
+  instanceId: string;
+  sectionType: SectionId;
   theme: PortfolioTheme;
   updateTheme: (patch: Partial<PortfolioTheme>) => void;
+  platform?: PlatformData;
+  updatePlatform?: (patch: Partial<PlatformData>) => void;
+  personalInfo?: PersonalInfo;
+  updateProfile?: (patch: Partial<PersonalInfo>) => void;
 }
 
-export default function SectionEditorPanel({ sectionId, theme, updateTheme }: SectionEditorPanelProps) {
-  const style = theme.sectionStyles[sectionId];
+const COLUMN_SECTIONS = new Set<SectionId>(["gallery", "testimonials", "services", "awards", "projects"]);
+const MEDIA_HEIGHT_SECTIONS = new Set<SectionId>(["gallery", "video"]);
+
+export default function SectionEditorPanel({
+  instanceId,
+  sectionType,
+  theme,
+  updateTheme,
+  platform,
+  updatePlatform,
+  personalInfo,
+  updateProfile,
+}: SectionEditorPanelProps) {
+  const instance = { id: instanceId, type: sectionType };
+  const style = getSectionStyleForInstance(instance, theme.sectionStyles);
+  const headerLabel = getInstanceLabel(instance, theme.sections.order, theme.sections.titles);
 
   function updateStyle(patch: Partial<SectionStyle>) {
     updateTheme({
       sectionStyles: {
         ...theme.sectionStyles,
-        [sectionId]: { ...style, ...patch },
+        [instanceId]: { ...style, ...patch },
+      },
+    });
+  }
+
+  function updateInstancePlatformContent(patch: Partial<SectionInstanceContent>) {
+    if (!updatePlatform || !platform) return;
+    updatePlatform({
+      sectionContent: {
+        ...platform.sectionContent,
+        [instanceId]: {
+          ...(platform.sectionContent?.[instanceId] ?? {}),
+          ...patch,
+        },
       },
     });
   }
@@ -27,26 +88,30 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
     updateTheme({ content: { ...theme.content, ...patch } });
   }
 
+  function updateColors(patch: Partial<NonNullable<SectionStyle["colors"]>>) {
+    updateStyle({ colors: { ...style.colors, ...patch } });
+  }
+
   return (
     <div className="space-y-5">
-      <div
-        className="flex items-center gap-2 pb-3 border-b"
-        style={{ borderColor: "var(--app-border)" }}
-      >
+      <div className="flex items-center gap-2 pb-3 border-b" style={{ borderColor: "var(--app-border)" }}>
         <h3 className="font-semibold" style={{ color: "var(--app-text)" }}>
-          {SECTION_LABELS[sectionId]}
+          {headerLabel}
         </h3>
+        <span className="text-xs" style={{ color: "var(--app-text-muted)" }}>
+          {SECTION_LABELS[sectionType]}
+        </span>
       </div>
 
       <PanelSection title="Section title">
         <input
           type="text"
-          value={theme.sections.titles[sectionId]}
+          value={theme.sections.titles[instanceId] || ""}
           onChange={(e) =>
             updateTheme({
               sections: {
                 ...theme.sections,
-                titles: { ...theme.sections.titles, [sectionId]: e.target.value },
+                titles: { ...theme.sections.titles, [instanceId]: e.target.value },
               },
             })
           }
@@ -54,7 +119,7 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
         />
       </PanelSection>
 
-      <PanelSection title="Design">
+      <PanelSection title="Layout & spacing">
         <div className="space-y-4">
           <div>
             <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Alignment</p>
@@ -82,7 +147,70 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
             />
           </div>
           <div>
-            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Background</p>
+            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Section width</p>
+            <OptionGroup
+              value={style.maxWidth || "inherit"}
+              options={[
+                { value: "inherit", label: "Global" },
+                { value: "narrow", label: "Narrow" },
+                { value: "medium", label: "Medium" },
+                { value: "wide", label: "Wide" },
+              ]}
+              onChange={(v) => updateStyle({ maxWidth: v as SectionStyle["maxWidth"] })}
+            />
+          </div>
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Min height</p>
+            <OptionGroup
+              value={style.minHeight || "auto"}
+              options={[
+                { value: "auto", label: "Auto" },
+                { value: "sm", label: "200px" },
+                { value: "md", label: "320px" },
+                { value: "lg", label: "480px" },
+                { value: "xl", label: "640px" },
+                { value: "screen", label: "Full screen" },
+              ]}
+              onChange={(v) => updateStyle({ minHeight: v as SectionStyle["minHeight"] })}
+            />
+          </div>
+          {COLUMN_SECTIONS.has(sectionType) && (
+            <div>
+              <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Columns</p>
+              <OptionGroup
+                value={style.columns || "1"}
+                options={[
+                  { value: "1", label: "1" },
+                  { value: "2", label: "2" },
+                  { value: "3", label: "3" },
+                ]}
+                onChange={(v) => updateStyle({ columns: v as ColumnLayout })}
+              />
+            </div>
+          )}
+          {MEDIA_HEIGHT_SECTIONS.has(sectionType) && (
+            <div>
+              <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Media height</p>
+              <OptionGroup
+                value={style.mediaHeight || "md"}
+                options={[
+                  { value: "sm", label: "Small" },
+                  { value: "md", label: "Medium" },
+                  { value: "lg", label: "Large" },
+                  { value: "xl", label: "Extra large" },
+                  { value: "auto", label: "Auto" },
+                ]}
+                onChange={(v) => updateStyle({ mediaHeight: v as SectionStyle["mediaHeight"] })}
+              />
+            </div>
+          )}
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Background & surface">
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Background preset</p>
             <OptionGroup
               value={style.background}
               options={[
@@ -91,6 +219,42 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
                 { value: "accent", label: "Accent" },
               ]}
               onChange={(v) => updateStyle({ background: v as SectionStyle["background"] })}
+            />
+          </div>
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Background image URL</p>
+            <input
+              type="text"
+              value={style.backgroundImage || ""}
+              onChange={(e) => updateStyle({ backgroundImage: e.target.value })}
+              placeholder="https://..."
+              className="input-field text-xs"
+            />
+          </div>
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Corner radius</p>
+            <OptionGroup
+              value={style.borderRadius || theme.layout.borderRadius}
+              options={[
+                { value: "none", label: "Sharp" },
+                { value: "md", label: "Medium" },
+                { value: "lg", label: "Large" },
+                { value: "full", label: "Round" },
+              ]}
+              onChange={(v) => updateStyle({ borderRadius: v as BorderRadius })}
+            />
+          </div>
+          <div>
+            <p className="text-xs mb-1.5" style={{ color: "var(--app-text-muted)" }}>Shadow</p>
+            <OptionGroup
+              value={style.shadow || "none"}
+              options={[
+                { value: "none", label: "None" },
+                { value: "sm", label: "Small" },
+                { value: "md", label: "Medium" },
+                { value: "lg", label: "Large" },
+              ]}
+              onChange={(v) => updateStyle({ shadow: v as ShadowStyle })}
             />
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
@@ -105,25 +269,161 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
         </div>
       </PanelSection>
 
-      {sectionId === "experience" && (
+      <PanelSection title="Section colors">
+        <p className="text-xs mb-3" style={{ color: "var(--app-text-muted)" }}>
+          Override global theme colors for this section only. Leave blank to inherit.
+        </p>
+        <div className="space-y-3">
+          <ColorInput label="Background" value={style.colors?.background || theme.colors.surface} onChange={(v) => updateColors({ background: v })} />
+          <ColorInput label="Text" value={style.colors?.text || theme.colors.text} onChange={(v) => updateColors({ text: v })} />
+          <ColorInput label="Title" value={style.colors?.title || theme.colors.primary} onChange={(v) => updateColors({ title: v })} />
+          <ColorInput label="Accent" value={style.colors?.accent || theme.colors.accent} onChange={(v) => updateColors({ accent: v })} />
+          <ColorInput label="Border" value={style.colors?.border || theme.colors.textMuted} onChange={(v) => updateColors({ border: v })} />
+          {style.colors && (
+            <button
+              type="button"
+              onClick={() => updateStyle({ colors: undefined })}
+              className="text-xs"
+              style={{ color: "var(--app-text-muted)" }}
+            >
+              Reset to global colors
+            </button>
+          )}
+        </div>
+      </PanelSection>
+
+      <SectionContentRouter
+        instanceId={instanceId}
+        sectionType={sectionType}
+        theme={theme}
+        style={style}
+        updateTheme={updateTheme}
+        updateStyle={updateStyle}
+        updateContent={updateContent}
+        platform={platform}
+        updatePlatform={updatePlatform}
+        updateInstancePlatformContent={updateInstancePlatformContent}
+        personalInfo={personalInfo}
+        updateProfile={updateProfile}
+      />
+    </div>
+  );
+}
+
+function SectionContentRouter({
+  instanceId,
+  sectionType,
+  theme,
+  style,
+  updateTheme,
+  updateStyle,
+  updateContent,
+  platform,
+  updatePlatform,
+  updateInstancePlatformContent,
+  personalInfo,
+  updateProfile,
+}: {
+  instanceId: string;
+  sectionType: SectionId;
+  theme: PortfolioTheme;
+  style: SectionStyle;
+  updateTheme: (patch: Partial<PortfolioTheme>) => void;
+  updateStyle: (patch: Partial<SectionStyle>) => void;
+  updateContent: (patch: Partial<PortfolioTheme["content"]>) => void;
+  platform?: PlatformData;
+  updatePlatform?: (patch: Partial<PlatformData>) => void;
+  updateInstancePlatformContent: (patch: Partial<SectionInstanceContent>) => void;
+  personalInfo?: PersonalInfo;
+  updateProfile?: (patch: Partial<PersonalInfo>) => void;
+}) {
+  const noopProfile = updateProfile || (() => {});
+
+  switch (sectionType) {
+    case "about":
+      return personalInfo ? (
+        <AboutContentEditor
+          theme={theme}
+          personalInfo={personalInfo}
+          onThemeChange={updateContent}
+          onProfileChange={noopProfile}
+        />
+      ) : null;
+
+    case "experience":
+      return (
         <ExperienceEditor
           items={theme.content.experience}
           layout={style.layout || "timeline"}
           onLayoutChange={(layout) => updateStyle({ layout })}
           onChange={(experience) => updateContent({ experience })}
         />
-      )}
+      );
 
-      {sectionId === "stats" && (
+    case "stats":
+      return (
         <StatsEditor
           items={theme.content.stats}
           layout={style.layout || "row"}
           onLayoutChange={(layout) => updateStyle({ layout })}
           onChange={(stats) => updateContent({ stats })}
         />
-      )}
+      );
 
-      {sectionId === "contact" && (
+    case "skills":
+      return (
+        <>
+          {personalInfo && (
+            <SkillsOverviewEditor
+              theme={theme}
+              personalInfo={personalInfo}
+              onThemeChange={updateContent}
+              onProfileChange={noopProfile}
+            />
+          )}
+          <PanelSection title="Skills layout">
+            <OptionGroup
+              value={theme.layout.skillsLayout}
+              options={[
+                { value: "grid", label: "Grid" },
+                { value: "list", label: "List" },
+                { value: "tags", label: "Tags" },
+              ]}
+              onChange={(v) =>
+                updateTheme({
+                  layout: { ...theme.layout, skillsLayout: v as PortfolioTheme["layout"]["skillsLayout"] },
+                })
+              }
+            />
+          </PanelSection>
+          <SkillsNote />
+        </>
+      );
+
+    case "projects":
+      return (
+        <>
+          <PanelSection title="Projects layout">
+            <OptionGroup
+              value={theme.layout.projectsLayout}
+              options={[
+                { value: "list", label: "List" },
+                { value: "grid", label: "Grid" },
+                { value: "cards", label: "Cards" },
+              ]}
+              onChange={(v) =>
+                updateTheme({
+                  layout: { ...theme.layout, projectsLayout: v as PortfolioTheme["layout"]["projectsLayout"] },
+                })
+              }
+            />
+          </PanelSection>
+          <ProjectsNote />
+        </>
+      );
+
+    case "contact":
+      return (
         <>
           <PanelSection title="Layout">
             <OptionGroup
@@ -145,25 +445,22 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
             />
           </PanelSection>
         </>
-      )}
+      );
 
-      {sectionId === "contactform" && (
+    case "contactform":
+      return (
         <PanelSection title="Form intro text">
           <textarea
             value={theme.content.contactFormNote}
-            onChange={(e) =>
-              updateTheme({ content: { ...theme.content, contactFormNote: e.target.value } })
-            }
+            onChange={(e) => updateContent({ contactFormNote: e.target.value })}
             rows={3}
             className="input-field text-sm resize-y"
           />
-          <p className="text-xs mt-2" style={{ color: "var(--app-text-muted)" }}>
-            Messages appear in Dashboard → Messages.
-          </p>
         </PanelSection>
-      )}
+      );
 
-      {sectionId === "resume" && (
+    case "resume":
+      return (
         <PanelSection title="Description">
           <textarea
             value={theme.content.resumeText}
@@ -171,181 +468,173 @@ export default function SectionEditorPanel({ sectionId, theme, updateTheme }: Se
             rows={3}
             className="input-field text-sm resize-y"
           />
-          <p className="text-xs mt-2" style={{ color: "var(--app-text-muted)" }}>
-            Upload your CV in Dashboard → Profile. It will appear here automatically.
-          </p>
         </PanelSection>
-      )}
+      );
 
-      {sectionId === "cta" && (
-        <CtaEditor cta={theme.content.cta} onChange={(cta) => updateContent({ cta })} />
-      )}
+    case "cta":
+      return <CtaEditor cta={theme.content.cta} onChange={(cta) => updateContent({ cta })} />;
 
-      {sectionId === "projects" && (
-        <PanelSection title="Projects layout">
-          <OptionGroup
-            value={theme.layout.projectsLayout}
-            options={[
-              { value: "list", label: "List" },
-              { value: "grid", label: "Grid" },
-              { value: "cards", label: "Cards" },
-            ]}
-            onChange={(v) =>
-              updateTheme({
-                layout: { ...theme.layout, projectsLayout: v as PortfolioTheme["layout"]["projectsLayout"] },
-              })
-            }
+    case "location":
+      return (
+        <>
+          <PanelSection title="Intro text">
+            <textarea
+              value={theme.content.locationNote}
+              onChange={(e) => updateContent({ locationNote: e.target.value })}
+              rows={3}
+              className="input-field text-sm resize-y"
+            />
+          </PanelSection>
+          <PanelSection title="Map embed URL">
+            <input
+              type="text"
+              value={theme.content.locationMapUrl}
+              onChange={(e) => updateContent({ locationMapUrl: e.target.value })}
+              placeholder="Leave empty to auto-generate from profile location"
+              className="input-field text-sm"
+            />
+            {personalInfo?.preferredLocation && (
+              <button
+                type="button"
+                className="mt-2 text-xs px-3 py-1.5 rounded-lg border"
+                style={{ borderColor: "var(--app-primary)", color: "var(--app-primary)" }}
+                onClick={() =>
+                  updateContent({
+                    locationMapUrl: buildMapEmbedUrl(personalInfo.preferredLocation || ""),
+                  })
+                }
+              >
+                Generate map from profile location
+              </button>
+            )}
+            <p className="text-xs mt-2" style={{ color: "var(--app-text-muted)" }}>
+              Location text comes from Profile → Location. Or set map in Layout → Footer.
+            </p>
+          </PanelSection>
+          <PanelSection title="Layout">
+            <OptionGroup
+              value={style.layout || "map"}
+              options={[
+                { value: "map", label: "Map + text" },
+                { value: "split", label: "Side by side" },
+                { value: "minimal", label: "Text only" },
+              ]}
+              onChange={(v) => updateStyle({ layout: v })}
+            />
+          </PanelSection>
+        </>
+      );
+
+    case "timeline":
+      return (
+        <>
+          <ExperienceEditor
+            items={theme.content.experience}
+            layout="timeline"
+            onLayoutChange={() => {}}
+            onChange={(experience) => updateContent({ experience })}
           />
-        </PanelSection>
-      )}
+          <EducationEditor items={theme.content.education} onChange={(education) => updateContent({ education })} />
+        </>
+      );
 
-      {sectionId === "skills" && (
-        <PanelSection title="Skills layout">
-          <OptionGroup
-            value={theme.layout.skillsLayout}
-            options={[
-              { value: "grid", label: "Grid" },
-              { value: "list", label: "List" },
-              { value: "tags", label: "Tags" },
-            ]}
-            onChange={(v) =>
-              updateTheme({
-                layout: { ...theme.layout, skillsLayout: v as PortfolioTheme["layout"]["skillsLayout"] },
-              })
-            }
+    case "techStack":
+      return <TechStackEditor items={theme.content.techStack} onChange={(techStack) => updateContent({ techStack })} />;
+
+    case "caseStudy":
+      return <CaseStudiesEditor items={theme.content.caseStudies} onChange={(caseStudies) => updateContent({ caseStudies })} />;
+
+    case "services":
+      return (
+        <>
+          <PanelSection title="Layout">
+            <OptionGroup
+              value={style.layout || "cards"}
+              options={[
+                { value: "cards", label: "Cards" },
+                { value: "list", label: "List" },
+              ]}
+              onChange={(v) => updateStyle({ layout: v })}
+            />
+          </PanelSection>
+          <ServicesEditor items={theme.content.services} onChange={(services) => updateContent({ services })} />
+        </>
+      );
+
+    case "blog":
+      return <BlogEditor items={theme.content.articles} onChange={(articles) => updateContent({ articles })} />;
+
+    case "openSource":
+      return <OpenSourceEditor items={theme.content.openSource} onChange={(openSource) => updateContent({ openSource })} />;
+
+    case "awards":
+      return <AwardsEditor items={theme.content.awards} onChange={(awards) => updateContent({ awards })} />;
+
+    case "languages":
+      return <LanguagesEditor items={theme.content.languages} onChange={(languages) => updateContent({ languages })} />;
+
+    case "testimonials":
+      return updatePlatform && platform ? (
+        <>
+          <PanelSection title="Layout">
+            <OptionGroup
+              value={style.layout || "cards"}
+              options={[
+                { value: "cards", label: "Cards" },
+                { value: "list", label: "List" },
+              ]}
+              onChange={(v) => updateStyle({ layout: v })}
+            />
+          </PanelSection>
+          <TestimonialsEditor
+            items={getInstanceTestimonials(platform, instanceId, sectionType, theme.sections.order)}
+            onChange={(testimonials) => updateInstancePlatformContent({ testimonials })}
           />
-        </PanelSection>
-      )}
-    </div>
-  );
-}
+        </>
+      ) : null;
 
-function ExperienceEditor({
-  items,
-  layout,
-  onLayoutChange,
-  onChange,
-}: {
-  items: ExperienceItem[];
-  layout: string;
-  onLayoutChange: (l: string) => void;
-  onChange: (items: ExperienceItem[]) => void;
-}) {
-  function updateItem(id: string, patch: Partial<ExperienceItem>) {
-    onChange(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  }
-
-  function addItem() {
-    onChange([
-      ...items,
-      { id: `exp-${Date.now()}`, role: "", company: "", period: "", description: "" },
-    ]);
-  }
-
-  function removeItem(id: string) {
-    onChange(items.filter((item) => item.id !== id));
-  }
-
-  return (
-    <>
-      <PanelSection title="Layout style">
-        <OptionGroup
-          value={layout}
-          options={[
-            { value: "timeline", label: "Timeline" },
-            { value: "cards", label: "Cards" },
-          ]}
-          onChange={onLayoutChange}
+    case "gallery":
+      return updatePlatform && platform ? (
+        <GalleryEditor
+          items={getInstanceGallery(platform, instanceId, sectionType, theme.sections.order)}
+          onChange={(gallery) => updateInstancePlatformContent({ gallery })}
         />
-      </PanelSection>
-      <PanelSection title="Experience entries">
-        <div className="space-y-3">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="p-3 rounded-lg border space-y-2"
-              style={{ borderColor: "var(--app-border)", background: "var(--app-input-bg)" }}
-            >
-              <input placeholder="Role" value={item.role} onChange={(e) => updateItem(item.id, { role: e.target.value })} className="input-field text-xs" />
-              <input placeholder="Company" value={item.company} onChange={(e) => updateItem(item.id, { company: e.target.value })} className="input-field text-xs" />
-              <input placeholder="Period (e.g. 2020 — 2023)" value={item.period} onChange={(e) => updateItem(item.id, { period: e.target.value })} className="input-field text-xs" />
-              <textarea placeholder="Description" value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} rows={2} className="input-field text-xs resize-y" />
-              <button type="button" onClick={() => removeItem(item.id)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
-            </div>
-          ))}
-          <button type="button" onClick={addItem} className="text-xs" style={{ color: "var(--app-primary)" }}>+ Add experience</button>
-        </div>
-      </PanelSection>
-    </>
-  );
-}
+      ) : null;
 
-function StatsEditor({
-  items,
-  layout,
-  onLayoutChange,
-  onChange,
-}: {
-  items: StatItem[];
-  layout: string;
-  onLayoutChange: (l: string) => void;
-  onChange: (items: StatItem[]) => void;
-}) {
-  function updateItem(id: string, patch: Partial<StatItem>) {
-    onChange(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  }
+    case "video":
+      return (
+        <>
+          <VideosEditor
+            items={theme.content.videos}
+            legacyUrl={platform ? getInstanceVideoUrl(platform, instanceId, sectionType, theme.sections.order) : ""}
+            onChange={(videos) => updateContent({ videos })}
+          />
+          {updatePlatform && platform && (
+            <PanelSection title="Legacy video URL">
+              <input
+                type="text"
+                value={getInstanceVideoUrl(platform, instanceId, sectionType, theme.sections.order)}
+                onChange={(e) => updateInstancePlatformContent({ videoUrl: e.target.value })}
+                placeholder="YouTube or Vimeo URL"
+                className="input-field text-xs"
+              />
+              <p className="text-xs mt-2" style={{ color: "var(--app-text-muted)" }}>
+                Used when no videos are added above.
+              </p>
+            </PanelSection>
+          )}
+        </>
+      );
 
-  function addItem() {
-    onChange([...items, { id: `stat-${Date.now()}`, label: "", value: "" }]);
-  }
-
-  function removeItem(id: string) {
-    onChange(items.filter((item) => item.id !== id));
-  }
-
-  return (
-    <>
-      <PanelSection title="Layout style">
-        <OptionGroup
-          value={layout}
-          options={[
-            { value: "row", label: "Row" },
-            { value: "grid", label: "Grid" },
-          ]}
-          onChange={onLayoutChange}
+    case "customHtml":
+      return updatePlatform && platform ? (
+        <CustomHtmlEditor
+          value={getInstanceCustomHtml(platform, instanceId, sectionType, theme.sections.order)}
+          onChange={(customHtml) => updateInstancePlatformContent({ customHtml })}
         />
-      </PanelSection>
-      <PanelSection title="Stats">
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div key={item.id} className="flex gap-2 items-center">
-              <input placeholder="Value" value={item.value} onChange={(e) => updateItem(item.id, { value: e.target.value })} className="input-field text-xs w-20" />
-              <input placeholder="Label" value={item.label} onChange={(e) => updateItem(item.id, { label: e.target.value })} className="input-field text-xs flex-1" />
-              <button type="button" onClick={() => removeItem(item.id)} className="text-red-400 px-1"><AppIcon name="x" size={14} /></button>
-            </div>
-          ))}
-          <button type="button" onClick={addItem} className="text-xs" style={{ color: "var(--app-primary)" }}>+ Add stat</button>
-        </div>
-      </PanelSection>
-    </>
-  );
-}
+      ) : null;
 
-function CtaEditor({
-  cta,
-  onChange,
-}: {
-  cta: PortfolioTheme["content"]["cta"];
-  onChange: (cta: PortfolioTheme["content"]["cta"]) => void;
-}) {
-  return (
-    <PanelSection title="Call to action content">
-      <div className="space-y-3">
-        <input placeholder="Headline" value={cta.headline} onChange={(e) => onChange({ ...cta, headline: e.target.value })} className="input-field text-sm" />
-        <textarea placeholder="Subtext" value={cta.subtext} onChange={(e) => onChange({ ...cta, subtext: e.target.value })} rows={2} className="input-field text-sm resize-y" />
-        <input placeholder="Button text" value={cta.buttonText} onChange={(e) => onChange({ ...cta, buttonText: e.target.value })} className="input-field text-sm" />
-        <input placeholder="Button URL" value={cta.buttonUrl} onChange={(e) => onChange({ ...cta, buttonUrl: e.target.value })} className="input-field text-sm" />
-      </div>
-    </PanelSection>
-  );
+    default:
+      return null;
+  }
 }

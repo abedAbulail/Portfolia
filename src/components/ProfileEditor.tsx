@@ -65,7 +65,7 @@ export default function ProfileEditor() {
   }
 
   if (loading) {
-    return <p className="text-slate-400">Loading profile...</p>;
+    return <p className="text-app-muted">Loading profile...</p>;
   }
 
   return (
@@ -97,9 +97,9 @@ export default function ProfileEditor() {
         <Field label="Website" value={form.personalWebsite || ""} onChange={(v) => update("personalWebsite", v)} type="url" />
       </div>
 
-      <div className="flex gap-1 p-1 rounded-lg bg-white/5 border border-white/10 w-fit">
-        <button type="button" onClick={() => setLangTab("en")} className={`px-4 py-1.5 text-sm rounded-md ${langTab === "en" ? "bg-violet-600 text-white" : "text-slate-400"}`}>English</button>
-        <button type="button" onClick={() => setLangTab("ar")} className={`px-4 py-1.5 text-sm rounded-md ${langTab === "ar" ? "bg-violet-600 text-white" : "text-slate-400"}`}>العربية</button>
+      <div className="tab-group">
+        <button type="button" onClick={() => setLangTab("en")} className={`tab-btn ${langTab === "en" ? "tab-btn-active" : ""}`}>English</button>
+        <button type="button" onClick={() => setLangTab("ar")} className={`tab-btn ${langTab === "ar" ? "tab-btn-active" : ""}`}>العربية</button>
       </div>
 
       {langTab === "en" ? (
@@ -143,7 +143,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
+      <label className="label-text">{label}</label>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="input-field" />
     </div>
   );
@@ -160,7 +160,7 @@ function TextArea({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
+      <label className="label-text">{label}</label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}

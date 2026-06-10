@@ -65,12 +65,12 @@ export default function ProjectsEditor() {
     await loadProjects();
   }
 
-  if (loading) return <p className="text-slate-400">Loading projects...</p>;
+  if (loading) return <p className="text-app-muted">Loading projects...</p>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <p className="text-slate-400 text-sm">{projects.length} project(s)</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-app-muted text-sm">{projects.length} project(s)</p>
         <button
           type="button"
           onClick={() => setEditing(emptyProject())}
@@ -81,8 +81,8 @@ export default function ProjectsEditor() {
       </div>
 
       {editing && (
-        <form onSubmit={handleSave} className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-6 space-y-4">
-          <h3 className="font-semibold text-white">
+        <form onSubmit={handleSave} className="panel">
+          <h3 className="font-semibold text-app">
             {editing.id ? "Edit project" : "New project"}
           </h3>
           <input
@@ -147,7 +147,7 @@ export default function ProjectsEditor() {
             disabled={!editing.id}
             disabledHint="Save the project first, then upload a photo."
           />
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={saving} className="btn-primary text-sm">
               {saving ? "Saving..." : "Save"}
             </button>
@@ -162,28 +162,27 @@ export default function ProjectsEditor() {
         {projects.map((project) => {
           const thumb = project.imageUrl || project.projectImages?.[0]?.url;
           return (
-          <div
-            key={project.id}
-            className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-5"
-          >
+          <div key={project.id} className="list-item">
             {thumb && (
               <img
                 src={thumb}
                 alt={project.projectName}
-                className="h-16 w-24 shrink-0 rounded-lg object-cover"
+                className="h-16 w-24 shrink-0 rounded-xl object-cover"
               />
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-white">{project.projectName}</h3>
+              <h3 className="font-semibold text-app">{project.projectName}</h3>
               {project.description && (
-                <p className="text-sm text-slate-400 mt-1 line-clamp-2">{project.description}</p>
+                <p className="text-sm text-app-muted mt-1 line-clamp-2">{project.description}</p>
               )}
-              <div className="flex gap-2 mt-2">
+              <div className="flex flex-wrap gap-2 mt-2">
                 {project.projectType && (
-                  <span className="text-xs text-violet-300">{project.projectType}</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--app-primary)" }}>
+                    {project.projectType}
+                  </span>
                 )}
                 {project.projectStatus && (
-                  <span className="text-xs text-emerald-300">· {project.projectStatus}</span>
+                  <span className="text-xs text-emerald-600">· {project.projectStatus}</span>
                 )}
               </div>
             </div>
@@ -196,14 +195,14 @@ export default function ProjectsEditor() {
                     imageUrl: project.imageUrl || project.projectImages?.[0]?.url || "",
                   })
                 }
-                className="text-sm text-slate-400 hover:text-white px-2 py-1"
+                className="text-sm text-app-muted hover:text-app px-2 py-1"
               >
                 Edit
               </button>
               <button
                 type="button"
                 onClick={() => handleDelete(project.id)}
-                className="text-sm text-red-400 hover:text-red-300 px-2 py-1"
+                className="text-sm text-red-500 hover:text-red-600 px-2 py-1"
               >
                 Delete
               </button>
@@ -213,7 +212,7 @@ export default function ProjectsEditor() {
         })}
 
         {projects.length === 0 && !editing && (
-          <p className="text-slate-500 text-center py-8">
+          <p className="text-app-muted text-center py-8">
             No projects yet. Add your first project to showcase your work.
           </p>
         )}
