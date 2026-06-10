@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import PortfolioClient from "@/components/PortfolioClient";
 import { AppIcon, type AppIconName } from "@/components/icons/AppIcons";
 import { useLocale } from "@/context/LocaleContext";
@@ -12,6 +13,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import ThemesPanel from "@/components/editor/ThemesPanel";
 import SectionEditorPanel from "@/components/editor/SectionEditorPanel";
 import LayoutPanel from "@/components/editor/LayoutPanel";
+import PageSectionsPanel from "@/components/editor/PageSectionsPanel";
 import {
   PanelSection,
   ColorInput,
@@ -23,6 +25,7 @@ import {
 import type { PortfolioData } from "@/lib/types";
 import type { PortfolioTheme, SectionId } from "@/lib/portfolio-theme";
 import type { PlatformData } from "@/lib/platform-data";
+import type { PortfolioPage } from "@/lib/platform-data";
 import { DEFAULT_PLATFORM, parsePlatformData } from "@/lib/platform-data";
 import {
   DEFAULT_THEME,
@@ -48,6 +51,23 @@ const VIEWPORT_WIDTHS: Record<PreviewViewport, string> = {
 };
 
 export default function PortfolioEditor() {
+  return (
+    <Suspense
+      fallback={
+        <p className="py-12 text-center" style={{ color: "var(--app-text-muted)" }}>
+          Loading editor…
+        </p>
+      }
+    >
+      <PortfolioEditorInner />
+    </Suspense>
+  );
+}
+
+function PortfolioEditorInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pageParam = searchParams.get("page");
   const [data, setData] = useState<PortfolioData | null>(null);
   const [platform, setPlatform] = useState<PlatformData>(DEFAULT_PLATFORM);
   const { state: theme, set: setThemeState, undo, redo, canUndo, canRedo, reset: resetTheme } = useUndoRedo<PortfolioTheme>(DEFAULT_THEME);
@@ -62,6 +82,7 @@ export default function PortfolioEditor() {
   const [uploadingHero, setUploadingHero] = useState(false);
   const [uploadingFooter, setUploadingFooter] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>("edit");
+  const [activePageId, setActivePageId] = useState<string | null>(pageParam);
   const { locale, setLocale, t, dir } = useLocale();
   const { theme: appTheme, toggleTheme } = useAppTheme();
 
@@ -140,6 +161,34 @@ export default function PortfolioEditor() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    setActivePageId(pageParam);
+    if (pageParam) setActiveTab("sections");
+  }, [pageParam]);
+
+  const activePage: PortfolioPage | null =
+    platform.pages.find((p) => p.id === activePageId) ||
+    platform.pages.find((p) => p.isHome) ||
+    platform.pages[0] ||
+    null;
+
+  function selectPage(pageId: string) {
+    setActivePageId(pageId);
+    router.push(`/dashboard/editor?page=${pageId}`);
+  }
+
+  const updateActivePageSections = useCallback(
+    (sectionOrder: string[]) => {
+      if (!activePageId) return;
+      updatePlatform({
+        pages: platform.pages.map((p) =>
+          p.id === activePageId ? { ...p, sectionOrder } : p
+        ),
+      });
+    },
+    [activePageId, platform.pages, updatePlatform]
+  );
 
   const updateProfile = useCallback(async (patch: Partial<PortfolioData["personalInfo"]>) => {
     setData((d) => (d ? { ...d, personalInfo: { ...d.personalInfo, ...patch } } : d));
@@ -245,6 +294,20 @@ export default function PortfolioEditor() {
             <span className="text-sm font-semibold truncate" style={{ color: "var(--app-text)" }}>
               {t("ed.title")}
             </span>
+            {platform.pages.length > 0 && (
+              <select
+                value={activePage?.id ?? ""}
+                onChange={(e) => selectPage(e.target.value)}
+                className="input-field !py-1.5 !px-2 text-xs max-w-[160px] sm:max-w-[200px]"
+                aria-label={t("ed.selectPage")}
+              >
+                {platform.pages.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
@@ -402,6 +465,20 @@ export default function PortfolioEditor() {
         </div>
       </header>
 
+      {activePage && (
+        <div
+          className="shrink-0 px-3 sm:px-4 py-2 border-b flex items-center justify-between gap-2 text-sm"
+          style={{ borderColor: "var(--app-border)", background: "var(--app-primary-muted)" }}
+        >
+          <span style={{ color: "var(--app-text)" }}>
+            {t("ed.editingPage")}: <strong>{activePage.title}</strong>
+          </span>
+          <Link href="/dashboard/pages" className="text-xs shrink-0" style={{ color: "var(--app-primary)" }}>
+            {t("ed.managePages")}
+          </Link>
+        </div>
+      )}
+
       {message && (
         <p
           className={`text-sm px-4 py-2 ${message.includes("saved") ? "text-emerald-500" : "text-red-400"}`}
@@ -451,14 +528,28 @@ export default function PortfolioEditor() {
             )}
 
             {activeTab === "sections" && !selectedSectionId && (
-              <SectionsList
-                theme={theme}
-                platform={platform}
-                updateTheme={updateTheme}
-                updatePlatform={updatePlatform}
-                moveSection={moveSection}
-                onSelectSection={setSelectedSectionId}
-              />
+              <>
+                {activePage && (
+                  <div className="mb-6 pb-6 border-b" style={{ borderColor: "var(--app-border)" }}>
+                    <PageSectionsPanel
+                      page={activePage}
+                      theme={theme}
+                      onChange={updateActivePageSections}
+                      label={t("ed.pageSections")}
+                      hint={t("ed.pageSectionsHint")}
+                    />
+                  </div>
+                )}
+                <SectionsList
+                  theme={theme}
+                  platform={platform}
+                  updateTheme={updateTheme}
+                  updatePlatform={updatePlatform}
+                  moveSection={moveSection}
+                  onSelectSection={setSelectedSectionId}
+                  activePageId={activePageId}
+                />
+              </>
             )}
 
             {activeTab === "sections" && selectedSectionId && selectedInstance && (
@@ -545,6 +636,7 @@ export default function PortfolioEditor() {
             <div className="flex items-center justify-between mb-3 gap-2">
               <p className="text-sm" style={{ color: "var(--app-text-muted)" }}>
                 {t("ed.livePreview")} · {viewport}
+                {activePage ? ` · ${activePage.title}` : ""}
               </p>
               {theme.activeThemeId && (
                 <span className="text-xs capitalize truncate" style={{ color: "var(--app-text-muted)" }}>
@@ -563,7 +655,12 @@ export default function PortfolioEditor() {
                 }}
               >
                 {userSlug && previewData && (
-                  <PortfolioClient data={previewData} slug={userSlug} />
+                  <PortfolioClient
+                    data={previewData}
+                    slug={userSlug}
+                    pageSlug={activePage?.slug ?? ""}
+                    sectionOrder={activePage?.sectionOrder}
+                  />
                 )}
               </div>
             </div>
@@ -581,6 +678,7 @@ function SectionsList({
   updatePlatform,
   moveSection,
   onSelectSection,
+  activePageId,
 }: {
   theme: PortfolioTheme;
   platform: PlatformData;
@@ -588,6 +686,7 @@ function SectionsList({
   updatePlatform: (patch: Partial<PlatformData>) => void;
   moveSection: (instanceId: string, dir: -1 | 1) => void;
   onSelectSection: (instanceId: string) => void;
+  activePageId?: string | null;
 }) {
   function addSection(type: SectionId, sourceInstanceId?: string) {
     const instance = createSectionInstance(type, theme.sections.order);
@@ -622,6 +721,16 @@ function SectionsList({
           ...platform.sectionContent,
           [instance.id]: structuredClone(platform.sectionContent[source.id]),
         },
+      });
+    }
+
+    if (activePageId) {
+      updatePlatform({
+        pages: platform.pages.map((p) =>
+          p.id === activePageId && !p.sectionOrder.includes(instance.id)
+            ? { ...p, sectionOrder: [...p.sectionOrder, instance.id] }
+            : p
+        ),
       });
     }
   }

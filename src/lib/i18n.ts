@@ -129,6 +129,12 @@ const en: Dict = {
   "pages.sections": "Sections on this page",
   "pages.saving": "Saving...",
   "pages.loading": "Loading pages...",
+  "pages.save": "Save pages",
+  "pages.saved": "Pages saved.",
+  "pages.saveFailed": "Failed to save pages.",
+  "pages.unsaved": "You have unsaved changes",
+  "pages.allSaved": "All changes saved",
+  "pages.editInEditor": "Edit in editor",
 
   // Jobs
   "jobs.title": "Jobs",
@@ -193,6 +199,11 @@ const en: Dict = {
   "ed.undo": "Undo",
   "ed.redo": "Redo",
   "ed.autoSaved": "Auto-saved",
+  "ed.editingPage": "Editing page",
+  "ed.managePages": "Manage pages",
+  "ed.pageSections": "Sections on this page",
+  "ed.pageSectionsHint": "Choose which sections appear on this page and their order.",
+  "ed.selectPage": "Select page to preview",
 };
 
 const ar: Dict = {
@@ -309,6 +320,12 @@ const ar: Dict = {
   "pages.sections": "أقسام هذه الصفحة",
   "pages.saving": "جاري الحفظ...",
   "pages.loading": "جاري التحميل...",
+  "pages.save": "حفظ الصفحات",
+  "pages.saved": "تم حفظ الصفحات.",
+  "pages.saveFailed": "فشل حفظ الصفحات.",
+  "pages.unsaved": "لديك تغييرات غير محفوظة",
+  "pages.allSaved": "تم حفظ جميع التغييرات",
+  "pages.editInEditor": "تعديل في المحرر",
 
   "jobs.title": "الوظائف",
   "jobs.subtitle": "تصفح الوظائف من jobs.ps و Remotive",
@@ -369,6 +386,11 @@ const ar: Dict = {
   "ed.undo": "تراجع",
   "ed.redo": "إعادة",
   "ed.autoSaved": "حُفظ تلقائياً",
+  "ed.editingPage": "تعديل الصفحة",
+  "ed.managePages": "إدارة الصفحات",
+  "ed.pageSections": "أقسام هذه الصفحة",
+  "ed.pageSectionsHint": "اختر الأقسام التي تظهر في هذه الصفحة وترتيبها.",
+  "ed.selectPage": "اختر صفحة للمعاينة",
 };
 
 const dictionaries: Record<Locale, Dict> = { en, ar };
